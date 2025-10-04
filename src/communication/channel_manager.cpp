@@ -22,9 +22,9 @@ void ChannelManager::update() {
 void ChannelManager::updateChannelData() {
   int rawThrottle = ibus.readChannel(Types::CH_THROTTLE);
   int rawSteering = ibus.readChannel(Types::CH_STEERING);
-  
+
   bool dataReceived = false;
-  
+
   if (rawThrottle > 0) {
     channelData.throttle = Utils::clampi(rawThrottle, Config::PWM_MIN, Config::PWM_MAX);
     channelData.nThrottle = Utils::normalizeStick(channelData.throttle);
@@ -33,7 +33,7 @@ void ChannelManager::updateChannelData() {
     channelData.throttle = Config::PWM_MID;
     channelData.nThrottle = 0.0f;
   }
-  
+
   if (rawSteering > 0) {
     channelData.steering = Utils::clampi(rawSteering, Config::PWM_MIN, Config::PWM_MAX);
     channelData.nSteering = Utils::normalizeStick(channelData.steering);
@@ -42,7 +42,18 @@ void ChannelManager::updateChannelData() {
     channelData.steering = Config::PWM_MID;
     channelData.nSteering = 0.0f;
   }
-  
+
+  // Read auxiliary channels
+  for (int i = 0; i < 8; ++i) { // Assuming 8 auxiliary channels
+    int rawAux = ibus.readChannel(Types::CH_AUX1 + i);
+    if (rawAux > 0) {
+      channelData.aux[i] = Utils::clampi(rawAux, Config::PWM_MIN, Config::PWM_MAX);
+      dataReceived = true;
+    } else {
+      channelData.aux[i] = Config::PWM_MID;
+    }
+  }
+
   if (dataReceived) {
     channelData.isValid = true;
     channelData.lastUpdateTime = millis();

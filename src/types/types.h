@@ -13,8 +13,8 @@ namespace Types {
     CH_AUX4 = 5,
     CH_AUX5 = 6,
     CH_AUX6 = 7,
-    CH_AUX7 = 8,
-    CH_AUX8 = 9,
+    CH_VRA = 8,
+    CH_VRB = 9,
     MAX_CHANNELS = 10
   };
 

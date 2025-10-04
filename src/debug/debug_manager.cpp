@@ -22,10 +22,14 @@ void DebugManager::printChannelData(const Types::ChannelData& channels) {
   if (!isEnabled || !shouldPrint()) {
     return;
   }
-  
+
   Serial.printf("CH: T:%4d S:%4d | nT:%.3f nS:%.3f",
                 channels.throttle, channels.steering,
                 channels.nThrottle, channels.nSteering);
+
+  for (int i = 0; i < 8; ++i) { // Assuming 8 auxiliary channels
+    Serial.printf(" | AUX%d:%4d", i + 1, channels.aux[i]);
+  }
 }
 
 void DebugManager::printMotorCommands(const Types::MotorCommands& motors) {
