@@ -4,7 +4,7 @@
 #include "../utils/utils.h"
 #include <Arduino.h>
 
-MotorController::MotorController() : isInitialized(false), lastUpdateTime(0) {}
+MotorController::MotorController() : isInitialized(false) {}
 
 bool MotorController::initialize() {
   escLeft.attach(Pins::ESC_LEFT);
@@ -21,8 +21,6 @@ void MotorController::update(float throttle, float steering) {
   calculateMotorCommands(throttle, steering);
   normalizeMotorCommands();
   updatePWMOutputs();
-  
-  lastUpdateTime = millis();
 }
 
 void MotorController::calculateMotorCommands(float throttle, float steering) {

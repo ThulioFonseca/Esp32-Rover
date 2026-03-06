@@ -9,7 +9,6 @@ private:
   Servo escLeft, escRight;
   Types::MotorCommands commands;
   bool isInitialized;
-  unsigned long lastUpdateTime;
 
 public:
   MotorController();

@@ -6,6 +6,10 @@ namespace Pins {
   constexpr uint8_t ESC_LEFT = 19;
   constexpr uint8_t ESC_RIGHT = 18;
   
+  // Comunicação (IBUS)
+  constexpr uint8_t IBUS_RX = 16;
+  constexpr uint8_t IBUS_TX = 17;
+
   // Sensores (futuro)
   constexpr uint8_t BATTERY_VOLTAGE = 34;
   constexpr uint8_t TEMPERATURE = 35;

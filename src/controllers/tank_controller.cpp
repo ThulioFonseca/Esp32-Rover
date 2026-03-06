@@ -2,14 +2,15 @@
 #include "../config/config.h"
 #include "../utils/utils.h"
 #include <Arduino.h>
+#include <SPIFFS.h>
 
 TankController::TankController() 
   : currentState(Types::INITIALIZING), 
-    lastControlTime(0), 
     systemArmed(false) {}
 
 bool TankController::initialize() {
-  Serial.begin(Config::SERIAL_BAUD);
+  // Serial já inicializada no main.cpp
+  // Serial.begin(Config::SERIAL_BAUD); 
   Serial.println("=== Inicializando TankController ===");
   
   currentState = Types::INITIALIZING;
@@ -31,6 +32,9 @@ bool TankController::initialize() {
     currentState = Types::ERROR;
     return false;
   }
+  debugManager.printInfo("MotorController inicializado");
+
+  
   
   // Realizar sequência de armamento
   currentState = Types::ARMING;
@@ -40,7 +44,6 @@ bool TankController::initialize() {
   // Sistema pronto
   currentState = Types::ARMED;
   systemArmed = true;
-  lastControlTime = millis();
   
   debugManager.printSystemStatus(currentState);
   Serial.println("=== Sistema Inicializado com Sucesso ===");
@@ -49,16 +52,6 @@ bool TankController::initialize() {
 }
 
 void TankController::update() {
-  // Yield para watchdog
-  yield();
-  
-  // Verificar timing de controle
-  if (!shouldUpdate()) {
-    return;
-  }
-  
-  lastControlTime = millis();
-  
   // Atualizar dados dos canais
   channelManager.update();
   
@@ -147,11 +140,6 @@ void TankController::processControls() {
   
   // Atualizar controlador de motores
   motorController.update(throttle, steering);
-}
-
-bool TankController::shouldUpdate() {
-  unsigned long now = millis();
-  return (now - lastControlTime >= Config::CONTROL_INTERVAL_MS);
 }
 
 void TankController::updateState() {

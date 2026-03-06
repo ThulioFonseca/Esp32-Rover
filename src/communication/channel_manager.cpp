@@ -1,12 +1,13 @@
 #include "channel_manager.h"
 #include "../config/config.h"
+#include "../config/pins.h"
 #include "../utils/utils.h"
 #include <Arduino.h>
 
 ChannelManager::ChannelManager() : lastUpdateTime(0), isInitialized(false) {}
 
 bool ChannelManager::initialize() {
-  ibus.begin(Serial2, Config::IBUS_MODE);
+  ibus.begin(Serial2, Config::IBUS_MODE, Pins::IBUS_RX, Pins::IBUS_TX);
   isInitialized = true;
   lastUpdateTime = millis();
   Serial.println("ChannelManager inicializado");

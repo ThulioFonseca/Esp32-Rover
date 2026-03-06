@@ -20,6 +20,7 @@ public:
   void printSystemStatus(Types::SystemState state);
   void printTimeout();
   void printError(const char* message);
+  void printInfo(const char* message);
   
 private:
   bool shouldPrint();

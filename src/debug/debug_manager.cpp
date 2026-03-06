@@ -72,7 +72,13 @@ void DebugManager::printTimeout() {
 void DebugManager::printError(const char* message) {
   if (!isEnabled) return;
   
-  Serial.printf("ERRO: %s\n", message);
+  Serial.printf("[ERROR]: %s\n", message);
+}
+
+void DebugManager::printInfo(const char* message) {
+  if (!isEnabled) return;
+  
+  Serial.printf("[INFO]: %s\n", message);
 }
 
 bool DebugManager::shouldPrint() {

@@ -5,6 +5,7 @@
 #include "../communication/channel_manager.h"
 #include "../controllers/motor_controller.h"
 #include "../debug/debug_manager.h"
+#include <SPIFFS.h>
 
 class TankController {
 private:
@@ -13,14 +14,13 @@ private:
   DebugManager debugManager;
   
   Types::SystemState currentState;
-  unsigned long lastControlTime;
   bool systemArmed;
 
 public:
   TankController();
   
   bool initialize();
-  void update();
+  void update(); // Chamado pela task RTOS em frequência fixa
   void setDebugMode(bool enabled);
   
   // Getters para monitoramento
@@ -33,7 +33,6 @@ private:
   void updateSystem();
   void handleTimeout();
   void processControls();
-  bool shouldUpdate();
   void updateState();
 };
 
