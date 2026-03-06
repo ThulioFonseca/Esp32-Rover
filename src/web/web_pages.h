@@ -22,6 +22,7 @@ const char index_html[] PROGMEM = R"rawliteral(
         
         <nav class="tabs">
             <button class="tab-btn active" onclick="openTab('home')">HOME</button>
+            <button class="tab-btn" onclick="openTab('radio')">RADIO</button>
             <button class="tab-btn" onclick="openTab('sensors')">SENSORS</button>
             <button class="tab-btn" onclick="openTab('config')">CONFIG</button>
         </nav>
@@ -40,6 +41,28 @@ const char index_html[] PROGMEM = R"rawliteral(
                         <ul id="netinfo-list">
                             <li>Loading...</li>
                         </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div id="radio" class="tab-content">
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h3>Main Channels</h3>
+                        <div class="channel-group">
+                            <label>Throttle</label>
+                            <div class="progress-bar"><div id="ch-throttle" class="fill"></div></div>
+                            <span id="val-throttle">1500</span>
+                        </div>
+                        <div class="channel-group">
+                            <label>Steering</label>
+                            <div class="progress-bar"><div id="ch-steering" class="fill"></div></div>
+                            <span id="val-steering">1500</span>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h3>Auxiliary</h3>
+                        <div id="aux-channels">Loading...</div>
                     </div>
                 </div>
             </div>
@@ -162,6 +185,12 @@ li span.value { font-weight: bold; color: #2c3e50; font-family: monospace; }
 }
 .placeholder-container .icon { font-size: 3rem; margin-bottom: 10px; }
 
+.channel-group { margin-bottom: 15px; }
+.channel-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9em; color: #555; }
+.progress-bar { background: #eee; height: 12px; border-radius: 6px; overflow: hidden; display: inline-block; width: 75%; vertical-align: middle; margin-right: 10px; }
+.progress-bar .fill { background: var(--accent-color); height: 100%; width: 50%; transition: width 0.1s ease; }
+.channel-group span { display: inline-block; width: 15%; text-align: right; font-family: monospace; font-weight: bold; font-size: 0.9em; }
+
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 )rawliteral";
 
@@ -199,6 +228,48 @@ function updateSysInfo() {
         .catch(err => console.error('Error fetching sysinfo:', err));
 }
 
+function updateRadio() {
+    fetch('/api/channels')
+    .then(r => r.json())
+    .then(d => {
+        updateChannel('throttle', d.throttle);
+        updateChannel('steering', d.steering);
+        
+        const auxContainer = document.getElementById('aux-channels');
+        // Initial setup if empty
+        if(auxContainer.innerHTML === 'Loading...' || auxContainer.innerHTML === '') {
+            auxContainer.innerHTML = '';
+            d.aux.forEach((val, i) => {
+                auxContainer.innerHTML += `
+                    <div class="channel-group">
+                        <label>AUX ${i+1}</label>
+                        <div class="progress-bar"><div id="ch-aux${i}" class="fill" style="width: 50%"></div></div>
+                        <span id="val-aux${i}">${val}</span>
+                    </div>`;
+            });
+        }
+        
+        // Update values
+        d.aux.forEach((val, i) => {
+            const el = document.getElementById(`ch-aux${i}`);
+            if(el) updateChannel(`aux${i}`, val);
+        });
+    })
+    .catch(err => console.error('Error fetching channels:', err));
+}
+
+function updateChannel(id, val) {
+    // Normaliza 1000-2000 para 0-100%
+    let pct = ((val - 1000) / 1000) * 100;
+    pct = Math.max(0, Math.min(100, pct)); // Clamp
+    
+    const bar = document.getElementById(`ch-${id}`);
+    const txt = document.getElementById(`val-${id}`);
+    
+    if(bar) bar.style.width = `${pct}%`;
+    if(txt) txt.innerText = val;
+}
+
 function formatBytes(bytes) {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -214,15 +285,20 @@ function formatTime(ms) {
     return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
 }
 
-// Update every 2 seconds if on Home tab
+// Update loop
 setInterval(() => {
     if(document.getElementById('home').classList.contains('active')) {
         updateSysInfo();
     }
-}, 2000);
+    if(document.getElementById('radio').classList.contains('active')) {
+        updateRadio();
+    }
+}, 500); // 2Hz update rate for smooth radio bars
 
 // Initial load
-document.addEventListener('DOMContentLoaded', updateSysInfo);
+document.addEventListener('DOMContentLoaded', () => {
+    updateSysInfo();
+});
 )rawliteral";
 
 #endif

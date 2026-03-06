@@ -1,6 +1,9 @@
 #include "web_server_manager.h"
 #include "web_pages.h"
+#include "controllers/tank_controller.h"
 #include <ArduinoJson.h>
+
+extern TankController tankController;
 
 WebServerManager::WebServerManager(const char* ssid, const char* password)
     : ap_ssid(ssid), ap_password(password), server(80) {}
@@ -58,6 +61,25 @@ void WebServerManager::setupRoutes() {
         doc["uptime"] = millis();
         doc["ip"] = WiFi.softAPIP().toString();
         doc["ssid"] = WiFi.softAPSSID();
+        
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
+
+    // RC Channels API
+    server.on("/api/channels", HTTP_GET, [](AsyncWebServerRequest *request){
+        const Types::ChannelData& channels = tankController.getChannelData();
+        
+        JsonDocument doc;
+        doc["throttle"] = channels.throttle;
+        doc["steering"] = channels.steering;
+        doc["valid"] = channels.isValid;
+        
+        JsonArray aux = doc["aux"].to<JsonArray>();
+        for(int i=0; i<8; i++) {
+            aux.add(channels.aux[i]);
+        }
         
         String response;
         serializeJson(doc, response);
