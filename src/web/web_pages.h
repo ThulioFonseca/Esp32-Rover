@@ -76,10 +76,18 @@ const char index_html[] PROGMEM = R"rawliteral(
             </div>
 
             <div id="config" class="tab-content">
-                <div class="placeholder-container">
-                    <div class="icon">⚙️</div>
-                    <h2>Configuration Coming Soon</h2>
-                    <p>System parameters and pinout configuration will be available here.</p>
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h3>System Settings</h3>
+                        <div class="setting-item">
+                            <label for="debug-toggle">Serial Debug Output</label>
+                            <label class="switch">
+                                <input type="checkbox" id="debug-toggle" onchange="toggleDebug()">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <p style="font-size: 0.8em; color: #7f8c8d;">Enables detailed logging to the Serial Monitor via USB.</p>
+                    </div>
                 </div>
             </div>
         </main>
@@ -191,6 +199,18 @@ li span.value { font-weight: bold; color: #2c3e50; font-family: monospace; }
 .progress-bar .fill { background: var(--accent-color); height: 100%; width: 50%; transition: width 0.1s ease; }
 .channel-group span { display: inline-block; width: 15%; text-align: right; font-family: monospace; font-weight: bold; font-size: 0.9em; }
 
+/* Switch Toggle */
+.switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; }
+.slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; }
+input:checked + .slider { background-color: var(--accent-color); }
+input:focus + .slider { box-shadow: 0 0 1px var(--accent-color); }
+input:checked + .slider:before { transform: translateX(22px); }
+.slider.round { border-radius: 34px; }
+.slider.round:before { border-radius: 50%; }
+.setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 )rawliteral";
 
@@ -259,15 +279,30 @@ function updateRadio() {
 }
 
 function updateChannel(id, val) {
-    // Normaliza 1000-2000 para 0-100%
     let pct = ((val - 1000) / 1000) * 100;
-    pct = Math.max(0, Math.min(100, pct)); // Clamp
-    
+    pct = Math.max(0, Math.min(100, pct));
     const bar = document.getElementById(`ch-${id}`);
     const txt = document.getElementById(`val-${id}`);
-    
     if(bar) bar.style.width = `${pct}%`;
     if(txt) txt.innerText = val;
+}
+
+function loadSettings() {
+    fetch('/api/settings')
+    .then(r => r.json())
+    .then(d => {
+        document.getElementById('debug-toggle').checked = d.debug;
+    })
+    .catch(console.error);
+}
+
+function toggleDebug() {
+    const enabled = document.getElementById('debug-toggle').checked;
+    fetch('/api/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({debug: enabled})
+    }).catch(console.error);
 }
 
 function formatBytes(bytes) {
@@ -293,11 +328,12 @@ setInterval(() => {
     if(document.getElementById('radio').classList.contains('active')) {
         updateRadio();
     }
-}, 500); // 2Hz update rate for smooth radio bars
+}, 500);
 
 // Initial load
 document.addEventListener('DOMContentLoaded', () => {
     updateSysInfo();
+    loadSettings();
 });
 )rawliteral";
 

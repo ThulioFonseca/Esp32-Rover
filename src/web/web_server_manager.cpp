@@ -1,6 +1,7 @@
 #include "web_server_manager.h"
 #include "web_pages.h"
 #include "controllers/tank_controller.h"
+#include "config/config.h"
 #include <ArduinoJson.h>
 
 extern TankController tankController;
@@ -84,6 +85,28 @@ void WebServerManager::setupRoutes() {
         String response;
         serializeJson(doc, response);
         request->send(200, "application/json", response);
+    });
+
+    // System Settings API
+    server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest *request){
+        JsonDocument doc;
+        doc["debug"] = Config::DEBUG_ENABLED;
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
+
+    server.on("/api/settings", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL, 
+    [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
+        JsonDocument doc;
+        deserializeJson(doc, data);
+        
+        if (!doc["debug"].isNull()) {
+            Config::DEBUG_ENABLED = doc["debug"];
+            tankController.setDebugMode(Config::DEBUG_ENABLED);
+        }
+        
+        request->send(200, "application/json", "{\"status\":\"success\"}");
     });
 
     // Not found

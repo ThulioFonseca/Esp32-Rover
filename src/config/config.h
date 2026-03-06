@@ -18,10 +18,13 @@ namespace Config {
   constexpr int STICK_DEADZONE = 10;
   
   // Timeouts e intervalos
-  constexpr unsigned long IBUS_TIMEOUT_MS = 400;
-  constexpr unsigned long CONTROL_INTERVAL_MS = 20;
+  extern unsigned long IBUS_TIMEOUT_MS;
+  constexpr unsigned long CONTROL_INTERVAL_MS = 20; // Frequência de controle fixa
   constexpr unsigned long DEBUG_INTERVAL_MS = 100;
   constexpr unsigned long ARMING_TIME_MS = 1500;
+
+  // Debug
+  extern bool DEBUG_ENABLED;
   
   // Configurações de comunicação
   constexpr unsigned long SERIAL_BAUD = 115200;

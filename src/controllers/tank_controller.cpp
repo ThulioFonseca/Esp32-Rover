@@ -17,7 +17,7 @@ bool TankController::initialize() {
   
   // Inicializar Debug Manager primeiro
   debugManager.initialize();
-  debugManager.setEnabled(true);
+  debugManager.setEnabled(Config::DEBUG_ENABLED);
   
   // Inicializar Channel Manager
   if (!channelManager.initialize()) {
