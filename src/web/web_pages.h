@@ -29,6 +29,16 @@ const char index_html[] PROGMEM = R"rawliteral(
 
         <main>
             <div id="home" class="tab-content active">
+                <div class="card" id="armed-card">
+                    <div class="setting-item" style="margin-bottom: 0;">
+                        <label for="armed-toggle" id="armed-label">SYSTEM STATUS</label>
+                        <label class="switch">
+                            <input type="checkbox" id="armed-toggle" onchange="toggleArmed()">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+
                 <div class="dashboard-grid">
                     <div class="card">
                         <h3>System Info</h3>
@@ -200,7 +210,7 @@ li span.value { font-weight: bold; color: #2c3e50; font-family: monospace; }
 .channel-group span { display: inline-block; width: 15%; text-align: right; font-family: monospace; font-weight: bold; font-size: 0.9em; }
 
 /* Switch Toggle */
-.switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+.switch { position: relative; display: inline-block; width: 50px; height: 28px; flex-shrink: 0; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; }
 .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; }
@@ -210,6 +220,12 @@ input:checked + .slider:before { transform: translateX(22px); }
 .slider.round { border-radius: 34px; }
 .slider.round:before { border-radius: 50%; }
 .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+
+/* Armed Status Styles */
+#armed-card { transition: all 0.3s ease; border-left: 5px solid transparent; margin-bottom: 20px; }
+.armed-true { background-color: #ffebee !important; border-left-color: #e53935 !important; }
+.armed-false { background-color: #e8f5e9 !important; border-left-color: #43a047 !important; }
+#armed-label { font-size: 1.1em; font-weight: 800; letter-spacing: 0.5px; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 )rawliteral";
@@ -256,7 +272,6 @@ function updateRadio() {
         updateChannel('steering', d.steering);
         
         const auxContainer = document.getElementById('aux-channels');
-        // Initial setup if empty
         if(auxContainer.innerHTML === 'Loading...' || auxContainer.innerHTML === '') {
             auxContainer.innerHTML = '';
             d.aux.forEach((val, i) => {
@@ -269,7 +284,6 @@ function updateRadio() {
             });
         }
         
-        // Update values
         d.aux.forEach((val, i) => {
             const el = document.getElementById(`ch-aux${i}`);
             if(el) updateChannel(`aux${i}`, val);
@@ -291,7 +305,16 @@ function loadSettings() {
     fetch('/api/settings')
     .then(r => r.json())
     .then(d => {
-        document.getElementById('debug-toggle').checked = d.debug;
+        // Debug Toggle
+        const debugToggle = document.getElementById('debug-toggle');
+        if(debugToggle) debugToggle.checked = d.debug;
+
+        // Armed Toggle
+        const armedToggle = document.getElementById('armed-toggle');
+        if(armedToggle) {
+            armedToggle.checked = d.armed;
+            updateArmedStyle(d.armed);
+        }
     })
     .catch(console.error);
 }
@@ -303,6 +326,33 @@ function toggleDebug() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({debug: enabled})
     }).catch(console.error);
+}
+
+function toggleArmed() {
+    const enabled = document.getElementById('armed-toggle').checked;
+    updateArmedStyle(enabled);
+    fetch('/api/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({armed: enabled})
+    }).catch(console.error);
+}
+
+function updateArmedStyle(isArmed) {
+    const card = document.getElementById('armed-card');
+    const label = document.getElementById('armed-label');
+    
+    if (isArmed) {
+        card.classList.remove('armed-false');
+        card.classList.add('armed-true');
+        label.innerText = "SYSTEM ARMED (MOTORS ACTIVE)";
+        label.style.color = "#c62828";
+    } else {
+        card.classList.remove('armed-true');
+        card.classList.add('armed-false');
+        label.innerText = "SYSTEM DISARMED (SAFE MODE)";
+        label.style.color = "#2e7d32";
+    }
 }
 
 function formatBytes(bytes) {

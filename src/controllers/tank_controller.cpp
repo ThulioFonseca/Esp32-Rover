@@ -83,6 +83,14 @@ void TankController::setDebugMode(bool enabled) {
   debugManager.setEnabled(enabled);
 }
 
+void TankController::setSystemArmed(bool armed) {
+  systemArmed = armed;
+  // Se desarmar, garantir neutro imediatamente
+  if (!systemArmed) {
+    motorController.setNeutral();
+  }
+}
+
 const Types::ChannelData& TankController::getChannelData() const {
   return channelManager.getChannelData();
 }
@@ -138,8 +146,12 @@ void TankController::processControls() {
   float throttle = channels.nThrottle;
   float steering = channels.nSteering;
   
-  // Atualizar controlador de motores
-  motorController.update(throttle, steering);
+  // Atualizar controlador de motores se armado
+  if (systemArmed) {
+    motorController.update(throttle, steering);
+  } else {
+    motorController.setNeutral();
+  }
 }
 
 void TankController::updateState() {

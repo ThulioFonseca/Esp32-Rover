@@ -22,6 +22,7 @@ public:
   bool initialize();
   void update(); // Chamado pela task RTOS em frequência fixa
   void setDebugMode(bool enabled);
+  void setSystemArmed(bool armed);
   
   // Getters para monitoramento
   const Types::ChannelData& getChannelData() const;

@@ -91,6 +91,7 @@ void WebServerManager::setupRoutes() {
     server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest *request){
         JsonDocument doc;
         doc["debug"] = Config::DEBUG_ENABLED;
+        doc["armed"] = tankController.isSystemArmed();
         String response;
         serializeJson(doc, response);
         request->send(200, "application/json", response);
@@ -104,6 +105,10 @@ void WebServerManager::setupRoutes() {
         if (!doc["debug"].isNull()) {
             Config::DEBUG_ENABLED = doc["debug"];
             tankController.setDebugMode(Config::DEBUG_ENABLED);
+        }
+
+        if (!doc["armed"].isNull()) {
+            tankController.setSystemArmed(doc["armed"]);
         }
         
         request->send(200, "application/json", "{\"status\":\"success\"}");
