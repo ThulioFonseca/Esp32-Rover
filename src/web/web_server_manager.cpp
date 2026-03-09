@@ -78,6 +78,10 @@ void WebServerManager::setupRoutes() {
         // Copia os dados para variáveis locais dentro da região crítica,
         // evitando uso de referência após liberar o mutex.
         Types::ChannelData snapshot;
+        if (tankMutex == nullptr) {
+            request->send(503, "application/json", "{\"error\":\"system not ready\"}");
+            return;
+        }
         if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
             snapshot = tankController.getChannelData();
             xSemaphoreGive(tankMutex);
@@ -104,6 +108,10 @@ void WebServerManager::setupRoutes() {
     // IMU / Sensors API
     server.on("/api/sensors", HTTP_GET, [](AsyncWebServerRequest *request){
         Types::ImuData snapshot;
+        if (tankMutex == nullptr) {
+            request->send(503, "application/json", "{\"error\":\"system not ready\"}");
+            return;
+        }
         if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
             snapshot = tankController.getImuData();
             xSemaphoreGive(tankMutex);
@@ -144,6 +152,10 @@ void WebServerManager::setupRoutes() {
     // System Settings API
     server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest *request){
         bool armed = false;
+        if (tankMutex == nullptr) {
+            request->send(503, "application/json", "{\"error\":\"system not ready\"}");
+            return;
+        }
         if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
             armed = tankController.isSystemArmed();
             xSemaphoreGive(tankMutex);
@@ -165,6 +177,10 @@ void WebServerManager::setupRoutes() {
         JsonDocument doc;
         deserializeJson(doc, data);
 
+        if (tankMutex == nullptr) {
+            request->send(503, "application/json", "{\"error\":\"system not ready\"}");
+            return;
+        }
         if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
             if (!doc["debug"].isNull()) {
                 Config::DEBUG_ENABLED = doc["debug"];
