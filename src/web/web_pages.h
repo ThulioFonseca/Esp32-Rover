@@ -78,10 +78,35 @@ const char index_html[] PROGMEM = R"rawliteral(
             </div>
 
             <div id="sensors" class="tab-content">
-                <div class="placeholder-container">
-                    <div class="icon">📊</div>
-                    <h2>Sensor Data Coming Soon</h2>
-                    <p>This module will display real-time sensor telemetry.</p>
+                <div id="imu-offline" class="card" style="display:none; border-left: 4px solid #e74c3c;">
+                    <p style="margin:0; color:#e74c3c; font-weight:bold;">⚠ IMU não disponível ou sem dados válidos</p>
+                </div>
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h3>Orientation</h3>
+                        <div class="sensor-row"><span class="label">Roll</span>  <span class="value" id="imu-roll">--</span> <span class="unit">°</span></div>
+                        <div class="sensor-row"><span class="label">Pitch</span> <span class="value" id="imu-pitch">--</span> <span class="unit">°</span></div>
+                        <div class="sensor-row"><span class="label">Yaw</span>   <span class="value" id="imu-yaw">--</span> <span class="unit">°</span></div>
+                        <div class="sensor-row" style="margin-top:12px;"><span class="label">Temperature</span> <span class="value" id="imu-temp">--</span> <span class="unit">°C</span></div>
+                    </div>
+                    <div class="card">
+                        <h3>Accelerometer (g)</h3>
+                        <div class="sensor-row"><span class="label">X</span> <span class="value" id="accel-x">--</span></div>
+                        <div class="sensor-row"><span class="label">Y</span> <span class="value" id="accel-y">--</span></div>
+                        <div class="sensor-row"><span class="label">Z</span> <span class="value" id="accel-z">--</span></div>
+                    </div>
+                    <div class="card">
+                        <h3>Gyroscope (°/s)</h3>
+                        <div class="sensor-row"><span class="label">X</span> <span class="value" id="gyro-x">--</span></div>
+                        <div class="sensor-row"><span class="label">Y</span> <span class="value" id="gyro-y">--</span></div>
+                        <div class="sensor-row"><span class="label">Z</span> <span class="value" id="gyro-z">--</span></div>
+                    </div>
+                    <div class="card">
+                        <h3>Magnetometer (µT)</h3>
+                        <div class="sensor-row"><span class="label">X</span> <span class="value" id="mag-x">--</span></div>
+                        <div class="sensor-row"><span class="label">Y</span> <span class="value" id="mag-y">--</span></div>
+                        <div class="sensor-row"><span class="label">Z</span> <span class="value" id="mag-z">--</span></div>
+                    </div>
                 </div>
             </div>
 
@@ -227,6 +252,12 @@ input:checked + .slider:before { transform: translateX(22px); }
 .armed-false { background-color: #e8f5e9 !important; border-left-color: #43a047 !important; }
 #armed-label { font-size: 1.1em; font-weight: 800; letter-spacing: 0.5px; }
 
+/* Sensor rows */
+.sensor-row { display: flex; align-items: baseline; padding: 6px 0; border-bottom: 1px solid #f9f9f9; }
+.sensor-row .label { font-weight: 500; color: #555; width: 90px; flex-shrink: 0; }
+.sensor-row .value { font-family: monospace; font-weight: bold; color: #2c3e50; margin-right: 4px; }
+.sensor-row .unit { font-size: 0.8em; color: #95a5a6; }
+
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 )rawliteral";
 
@@ -355,6 +386,39 @@ function updateArmedStyle(isArmed) {
     }
 }
 
+function updateSensors() {
+    fetch('/api/sensors')
+    .then(r => r.json())
+    .then(d => {
+        const offline = document.getElementById('imu-offline');
+        if (!d.valid) {
+            if (offline) offline.style.display = 'block';
+            return;
+        }
+        if (offline) offline.style.display = 'none';
+
+        const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(3);
+
+        document.getElementById('imu-roll').innerText  = fmt(d.angles.roll);
+        document.getElementById('imu-pitch').innerText = fmt(d.angles.pitch);
+        document.getElementById('imu-yaw').innerText   = fmt(d.angles.yaw);
+        document.getElementById('imu-temp').innerText  = d.temperature.toFixed(1);
+
+        document.getElementById('accel-x').innerText = fmt(d.accel.x);
+        document.getElementById('accel-y').innerText = fmt(d.accel.y);
+        document.getElementById('accel-z').innerText = fmt(d.accel.z);
+
+        document.getElementById('gyro-x').innerText = fmt(d.gyro.x);
+        document.getElementById('gyro-y').innerText = fmt(d.gyro.y);
+        document.getElementById('gyro-z').innerText = fmt(d.gyro.z);
+
+        document.getElementById('mag-x').innerText = fmt(d.mag.x);
+        document.getElementById('mag-y').innerText = fmt(d.mag.y);
+        document.getElementById('mag-z').innerText = fmt(d.mag.z);
+    })
+    .catch(err => console.error('Error fetching sensors:', err));
+}
+
 function formatBytes(bytes) {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -370,13 +434,16 @@ function formatTime(ms) {
     return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
 }
 
-// Update loop
+// Update loop — executa apenas para a aba visível, evitando requisições desnecessárias.
 setInterval(() => {
     if(document.getElementById('home').classList.contains('active')) {
         updateSysInfo();
     }
     if(document.getElementById('radio').classList.contains('active')) {
         updateRadio();
+    }
+    if(document.getElementById('sensors').classList.contains('active')) {
+        updateSensors();
     }
 }, 500);
 

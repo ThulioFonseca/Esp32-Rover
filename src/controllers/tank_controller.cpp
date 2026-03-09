@@ -2,174 +2,139 @@
 #include "../config/config.h"
 #include "../utils/utils.h"
 #include <Arduino.h>
-#include <SPIFFS.h>
 
-TankController::TankController() 
-  : currentState(Types::INITIALIZING), 
-    systemArmed(false) {}
+TankController::TankController()
+    : currentState(Types::INITIALIZING), systemArmed(false) {}
 
 bool TankController::initialize() {
-  // Serial já inicializada no main.cpp
-  // Serial.begin(Config::SERIAL_BAUD); 
-  Serial.println("=== Inicializando TankController ===");
-  
-  currentState = Types::INITIALIZING;
-  
-  // Inicializar Debug Manager primeiro
-  debugManager.initialize();
-  debugManager.setEnabled(Config::DEBUG_ENABLED);
-  
-  // Inicializar Channel Manager
-  if (!channelManager.initialize()) {
-    debugManager.printError("Falha ao inicializar ChannelManager");
-    currentState = Types::ERROR;
-    return false;
-  }
-  
-  // Inicializar Motor Controller
-  if (!motorController.initialize()) {
-    debugManager.printError("Falha ao inicializar MotorController");
-    currentState = Types::ERROR;
-    return false;
-  }
-  debugManager.printInfo("MotorController inicializado");
+    Serial.println("=== Inicializando TankController ===");
 
-  
-  
-  // Realizar sequência de armamento
-  currentState = Types::ARMING;
-  debugManager.printSystemStatus(currentState);
-  motorController.performArmingSequence();
-  
-  // Sistema pronto
-  currentState = Types::ARMED;
-  systemArmed = true;
-  
-  debugManager.printSystemStatus(currentState);
-  Serial.println("=== Sistema Inicializado com Sucesso ===");
-  
-  return true;
+    currentState = Types::INITIALIZING;
+
+    debugManager.initialize();
+    debugManager.setEnabled(Config::DEBUG_ENABLED);
+
+    Serial.println("[INFO] Inicializando ChannelManager...");
+    if (!channelManager.initialize()) {
+        Serial.println("[ERRO] Falha ao inicializar ChannelManager");
+        currentState = Types::ERROR;
+        return false;
+    }
+
+    Serial.println("[INFO] Inicializando MotorController...");
+    if (!motorController.initialize()) {
+        Serial.println("[ERRO] Falha ao inicializar MotorController");
+        currentState = Types::ERROR;
+        return false;
+    }
+
+    // IMU é opcional: falha na inicialização gera aviso mas não impede o boot.
+    if (Config::IMU_ENABLED) {
+        Serial.println("[INFO] Inicializando ImuSensor...");
+        if (!imuSensor.initialize()) {
+            Serial.println("[AVISO] ImuSensor não inicializado — continuando sem IMU");
+        }
+    }
+
+    Serial.println("[INFO] Iniciando sequência de armamento...");
+    currentState = Types::ARMING;
+    motorController.performArmingSequence();
+
+    currentState = Types::ARMED;
+    systemArmed = true;
+    Serial.println("[INFO] Armamento concluído — sistema ARMADO");
+
+    Serial.println("=== TankController inicializado com sucesso ===");
+    return true;
 }
 
 void TankController::update() {
-  // Atualizar dados dos canais
-  channelManager.update();
-  
-  // Atualizar estado do sistema
-  updateState();
-  
-  // Processar baseado no estado atual
-  switch (currentState) {
-    case Types::ARMED:
-      updateSystem();
-      break;
-      
-    case Types::TIMEOUT:
-      handleTimeout();
-      break;
-      
-    case Types::ERROR:
-      // Manter motores em neutro em caso de erro
-      motorController.setNeutral();
-      break;
-      
-    default:
-      // Estados de inicialização - não fazer nada
-      break;
-  }
+    channelManager.update();
+    updateState();
+
+    // IMU atualiza independente do estado do sistema (dados sempre disponíveis para monitoramento).
+    imuSensor.update();
+
+    switch (currentState) {
+        case Types::ARMED:   updateSystem();               break;
+        case Types::TIMEOUT: handleTimeout();              break;
+        case Types::ERROR:   motorController.setNeutral(); break;
+        default:                                           break;
+    }
 }
 
 void TankController::setDebugMode(bool enabled) {
-  debugManager.setEnabled(enabled);
+    debugManager.setEnabled(enabled);
 }
 
 void TankController::setSystemArmed(bool armed) {
-  systemArmed = armed;
-  // Se desarmar, garantir neutro imediatamente
-  if (!systemArmed) {
-    motorController.setNeutral();
-  }
+    systemArmed = armed;
+    if (!systemArmed) {
+        motorController.setNeutral();
+    }
 }
 
 const Types::ChannelData& TankController::getChannelData() const {
-  return channelManager.getChannelData();
+    return channelManager.getChannelData();
 }
 
 const Types::MotorCommands& TankController::getMotorCommands() const {
-  return motorController.getCommands();
+    return motorController.getCommands();
+}
+
+const Types::ImuData& TankController::getImuData() const {
+    return imuSensor.getData();
 }
 
 Types::SystemState TankController::getSystemState() const {
-  return currentState;
+    return currentState;
 }
 
 bool TankController::isSystemArmed() const {
-  return systemArmed;
+    return systemArmed;
 }
 
 void TankController::updateSystem() {
-  // Verificar se há dados válidos
-  if (!channelManager.isDataValid()) {
-    return;
-  }
-  
-  // Processar controles
-  processControls();
-  
-  // Debug output se habilitado
-  if (debugManager.isDebugEnabled()) {
-    debugManager.printChannelData(channelManager.getChannelData());
-    debugManager.printMotorCommands(motorController.getCommands());
-  }
+    if (!channelManager.isDataValid()) return;
+
+    processControls();
+
+    if (debugManager.isDebugEnabled()) {
+        debugManager.printChannelData(channelManager.getChannelData());
+        debugManager.printMotorCommands(motorController.getCommands());
+    }
 }
 
 void TankController::handleTimeout() {
-  // Colocar motores em neutro
-  motorController.setNeutral();
-  
-  // Imprimir debug se habilitado
-  if (debugManager.isDebugEnabled()) {
-    debugManager.printTimeout();
-  }
-  
-  // Nota: a recuperação do estado TIMEOUT → ARMED é feita exclusivamente
-  // em updateState(), que é chamado antes deste método em update().
-  // Não duplicar a lógica de transição aqui para evitar inconsistências.
+    motorController.setNeutral();
+
+    if (debugManager.isDebugEnabled()) {
+        debugManager.printTimeout();
+    }
+
+    // Recuperação do estado TIMEOUT → ARMED é tratada exclusivamente em updateState().
 }
 
 void TankController::processControls() {
-  const Types::ChannelData& channels = channelManager.getChannelData();
-  
-  // Obter valores normalizados dos controles
-  float throttle = channels.nThrottle;
-  float steering = channels.nSteering;
-  
-  // Atualizar controlador de motores se armado
-  if (systemArmed) {
-    motorController.update(throttle, steering);
-  } else {
-    motorController.setNeutral();
-  }
+    const Types::ChannelData& channels = channelManager.getChannelData();
+
+    if (systemArmed) {
+        motorController.update(channels.nThrottle, channels.nSteering);
+    } else {
+        motorController.setNeutral();
+    }
 }
 
 void TankController::updateState() {
-  Types::SystemState previousState = currentState;
-  
-  // Verificar timeout apenas se sistema estiver armado
-  if (currentState == Types::ARMED) {
-    if (channelManager.hasTimeout()) {
-      currentState = Types::TIMEOUT;
+    Types::SystemState previousState = currentState;
+
+    if (currentState == Types::ARMED && channelManager.hasTimeout()) {
+        currentState = Types::TIMEOUT;
+    } else if (currentState == Types::TIMEOUT && !channelManager.hasTimeout() && channelManager.isDataValid()) {
+        currentState = Types::ARMED;
     }
-  } 
-  // Se estava em timeout, verificar se recuperou
-  else if (currentState == Types::TIMEOUT) {
-    if (!channelManager.hasTimeout() && channelManager.isDataValid()) {
-      currentState = Types::ARMED;
+
+    if (previousState != currentState && debugManager.isDebugEnabled()) {
+        debugManager.printSystemStatus(currentState);
     }
-  }
-  
-  // Imprimir mudança de estado se necessário
-  if (previousState != currentState && debugManager.isDebugEnabled()) {
-    debugManager.printSystemStatus(currentState);
-  }
 }

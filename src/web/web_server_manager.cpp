@@ -38,19 +38,19 @@ bool WebServerManager::begin() {
 void WebServerManager::setupRoutes() {
     // Servir arquivos embarcados na memória (PROGMEM) para evitar conflitos com SPIFFS/Interrupts
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send_P(200, "text/html", index_html);
+        request->send(200, "text/html", index_html);
     });
 
     server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send_P(200, "text/html", index_html);
+        request->send(200, "text/html", index_html);
     });
 
     server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send_P(200, "text/css", style_css);
+        request->send(200, "text/css", style_css);
     });
 
     server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send_P(200, "application/javascript", script_js);
+        request->send(200, "application/javascript", script_js);
     });
 
     // Health check
@@ -95,6 +95,46 @@ void WebServerManager::setupRoutes() {
         for(int i = 0; i < 8; i++) {
             aux.add(snapshot.aux[i]);
         }
+
+        String response;
+        serializeJson(doc, response);
+        request->send(200, "application/json", response);
+    });
+
+    // IMU / Sensors API
+    server.on("/api/sensors", HTTP_GET, [](AsyncWebServerRequest *request){
+        Types::ImuData snapshot;
+        if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+            snapshot = tankController.getImuData();
+            xSemaphoreGive(tankMutex);
+        } else {
+            request->send(503, "application/json", "{\"error\":\"system busy\"}");
+            return;
+        }
+
+        JsonDocument doc;
+        doc["valid"]       = snapshot.isValid;
+        doc["temperature"] = snapshot.temperature;
+
+        JsonObject accel = doc["accel"].to<JsonObject>();
+        accel["x"] = snapshot.accelX;
+        accel["y"] = snapshot.accelY;
+        accel["z"] = snapshot.accelZ;
+
+        JsonObject gyro = doc["gyro"].to<JsonObject>();
+        gyro["x"] = snapshot.gyroX;
+        gyro["y"] = snapshot.gyroY;
+        gyro["z"] = snapshot.gyroZ;
+
+        JsonObject mag = doc["mag"].to<JsonObject>();
+        mag["x"] = snapshot.magX;
+        mag["y"] = snapshot.magY;
+        mag["z"] = snapshot.magZ;
+
+        JsonObject angles = doc["angles"].to<JsonObject>();
+        angles["roll"]  = snapshot.roll;
+        angles["pitch"] = snapshot.pitch;
+        angles["yaw"]   = snapshot.yaw;
 
         String response;
         serializeJson(doc, response);

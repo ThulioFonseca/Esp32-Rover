@@ -17,7 +17,6 @@ private:
     const char* ap_password;
     AsyncWebServer server;
 
-    // Configura as rotas HTTP
     void setupRoutes();
 };
 

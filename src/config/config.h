@@ -26,10 +26,15 @@ namespace Config {
   // Debug
   extern bool DEBUG_ENABLED;
   
-  // Configurações de comunicação
+  // Comunicação iBUS (Serial2)
   constexpr unsigned long SERIAL_BAUD = 115200;
-  constexpr uint8_t IBUS_UART = 2;
-  constexpr uint8_t IBUS_MODE = 1;
+  constexpr uint8_t IBUS_MODE = 1; // IBusBM: modo 1 = apenas leitura
+
+  // IMU (MPU-9250 / 6500 / 9255 via I2C)
+  // AD0 = LOW  → 0x68 | AD0 = HIGH → 0x69
+  constexpr uint8_t IMU_I2C_ADDR     = 0x69;
+  constexpr uint32_t IMU_I2C_FREQ_HZ = 400000; // Fast Mode (400 kHz)
+  extern bool IMU_ENABLED;
 }
 
 #endif
