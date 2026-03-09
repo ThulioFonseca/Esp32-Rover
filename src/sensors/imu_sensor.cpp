@@ -1,76 +1,132 @@
 #include "imu_sensor.h"
 #include "../config/config.h"
 #include "../config/pins.h"
-#include <Wire.h>
-#include <Arduino.h>
 
-ImuSensor::ImuSensor() : initialized(false) {}
+// ── Registradores MPU-6500 (compatível com MPU-6050/9250/9255) ────────────────
+static constexpr uint8_t REG_SMPLRT_DIV   = 0x19; // Sample Rate Divider
+static constexpr uint8_t REG_CONFIG       = 0x1A; // DLPF (filtro passa-baixa)
+static constexpr uint8_t REG_GYRO_CONFIG  = 0x1B; // Escala do giroscópio
+static constexpr uint8_t REG_ACCEL_CONFIG = 0x1C; // Escala do acelerômetro
+static constexpr uint8_t REG_DATA_START   = 0x3B; // Início dos 14 bytes de dados
+static constexpr uint8_t REG_PWR_MGMT_1   = 0x6B; // Gerenciamento de energia
+
+// ── Sensibilidades (para a faixa configurada) ─────────────────────────────────
+static constexpr float ACCEL_SENS = 8192.0f;  // LSB/g  (±4g)
+static constexpr float GYRO_SENS  = 65.5f;    // LSB/°/s (±500°/s)
+static constexpr float TEMP_SENS  = 321.0f;   // LSB/°C (MPU-6500 datasheet)
+static constexpr float TEMP_OFF   = 21.0f;    // Offset de temperatura (°C)
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+ImuSensor::ImuSensor() : initialized(false), lastUpdateMs(0) {}
 
 bool ImuSensor::initialize() {
-    // Inicializa o barramento I2C com os pinos e frequência definidos em config/pins.h.
     Wire.begin(Pins::SDA, Pins::SCL, Config::IMU_I2C_FREQ_HZ);
 
-    if (!mpu.setup(Config::IMU_I2C_ADDR, MPU9250Setting(), Wire)) {
-        Serial.println("[ERRO] IMU não detectado no endereço I2C configurado");
+    // Testa a comunicação enviando um byte e verificando ACK
+    Wire.beginTransmission(Config::IMU_I2C_ADDR);
+    if (Wire.endTransmission() != 0) {
+        Serial.println("[ERRO] MPU-6500 não respondeu no barramento I2C");
         return false;
     }
 
-    initialized = true;
+    // Acorda o sensor (limpa SLEEP) e usa PLL do giroscópio como clock
+    if (!writeRegister(REG_PWR_MGMT_1, 0x01)) return false;
+    delay(100); // aguarda o PLL estabilizar
+
+    // Taxa de amostragem: 1000 Hz / (1 + 9) = 100 Hz
+    if (!writeRegister(REG_SMPLRT_DIV, 0x09))   return false;
+
+    // Filtro passa-baixa: opção 4 ≈ 20 Hz (reduz ruído eletrônico)
+    if (!writeRegister(REG_CONFIG, 0x04))        return false;
+
+    // Giroscópio: ±500°/s → 65.5 LSB/°/s
+    if (!writeRegister(REG_GYRO_CONFIG, 0x08))   return false;
+
+    // Acelerômetro: ±4g → 8192 LSB/g
+    if (!writeRegister(REG_ACCEL_CONFIG, 0x08))  return false;
+
+    lastUpdateMs = millis();
+    initialized  = true;
+    Serial.println("[INFO] MPU-6500 inicializado (±4g / ±500°/s / 100 Hz)");
     return true;
 }
 
 void ImuSensor::update() {
     if (!initialized) return;
 
-    if (mpu.update()) {
-        readSensorData();
+    unsigned long now = millis();
+    float dt = (now - lastUpdateMs) / 1000.0f;
+    lastUpdateMs = now;
+
+    readSensorData();
+    computeAngles(dt);
+}
+
+const Types::ImuData& ImuSensor::getData() const { return data; }
+bool ImuSensor::isDataValid() const               { return data.isValid; }
+
+// ── I2C helpers ───────────────────────────────────────────────────────────────
+
+bool ImuSensor::writeRegister(uint8_t reg, uint8_t value) {
+    Wire.beginTransmission(Config::IMU_I2C_ADDR);
+    Wire.write(reg);
+    Wire.write(value);
+    return Wire.endTransmission() == 0;
+}
+
+bool ImuSensor::readRegisters(uint8_t reg, uint8_t count, uint8_t* buf) {
+    Wire.beginTransmission(Config::IMU_I2C_ADDR);
+    Wire.write(reg);
+    if (Wire.endTransmission(false) != 0) return false; // repeated start
+
+    Wire.requestFrom((uint8_t)Config::IMU_I2C_ADDR, count);
+    for (uint8_t i = 0; i < count; i++) {
+        if (!Wire.available()) return false;
+        buf[i] = Wire.read();
     }
+    return true;
 }
 
-/**
- * Executa calibração de acelerômetro e giroscópio.
- * O rover deve estar parado e nivelado durante o processo (~5 s).
- * Os offsets são armazenados internamente pela biblioteca e aplicados
- * automaticamente nas leituras subsequentes.
- */
-void ImuSensor::calibrate() {
-    if (!initialized) return;
-
-    Serial.println("[IMU] Iniciando calibração — mantenha o rover nivelado e parado...");
-    mpu.calibrateAccelGyro();
-    Serial.println("[IMU] Calibração de acelerômetro e giroscópio concluída");
-}
-
-const Types::ImuData& ImuSensor::getData() const {
-    return data;
-}
-
-bool ImuSensor::isDataValid() const {
-    return data.isValid;
-}
+// ── Leitura de dados ──────────────────────────────────────────────────────────
 
 void ImuSensor::readSensorData() {
-    data.accelX = mpu.getAccX();
-    data.accelY = mpu.getAccY();
-    data.accelZ = mpu.getAccZ();
+    uint8_t buf[14];
+    if (!readRegisters(REG_DATA_START, 14, buf)) return;
 
-    data.gyroX = mpu.getGyroX();
-    data.gyroY = mpu.getGyroY();
-    data.gyroZ = mpu.getGyroZ();
+    // Monta int16 big-endian e converte para unidade física
+    auto toInt16 = [](uint8_t hi, uint8_t lo) -> int16_t {
+        return (int16_t)((hi << 8) | lo);
+    };
 
-    // Magnetômetro disponível apenas no MPU-9250/9255.
-    // No MPU-6500 (sem mag), a biblioteca retorna 0.0.
-    data.magX = mpu.getMagX();
-    data.magY = mpu.getMagY();
-    data.magZ = mpu.getMagZ();
+    data.accelX = toInt16(buf[0],  buf[1])  / ACCEL_SENS;
+    data.accelY = toInt16(buf[2],  buf[3])  / ACCEL_SENS;
+    data.accelZ = toInt16(buf[4],  buf[5])  / ACCEL_SENS;
 
-    // Ângulos Euler calculados pelo filtro de fusão Mahony interno da biblioteca.
-    data.roll  = mpu.getRoll();
-    data.pitch = mpu.getPitch();
-    data.yaw   = mpu.getYaw();
+    // Temperatura: TEMP_OUT / 321.0 + 21.0 (MPU-6500 datasheet §4.16)
+    data.temperature = toInt16(buf[6], buf[7]) / TEMP_SENS + TEMP_OFF;
 
-    data.temperature = mpu.getTemperature();
+    data.gyroX = toInt16(buf[8],  buf[9])  / GYRO_SENS;
+    data.gyroY = toInt16(buf[10], buf[11]) / GYRO_SENS;
+    data.gyroZ = toInt16(buf[12], buf[13]) / GYRO_SENS;
+
+    // MPU-6500 não tem magnetômetro — campos mag permanecem em 0.0
 
     data.isValid    = true;
     data.lastUpdate = millis();
+}
+
+// ── Ângulos Euler ─────────────────────────────────────────────────────────────
+
+void ImuSensor::computeAngles(float dt) {
+    // Roll e pitch do acelerômetro (precisos em regime quasi-estático)
+    data.roll  = atan2f(data.accelY, data.accelZ) * RAD_TO_DEG;
+    data.pitch = atan2f(-data.accelX,
+                        sqrtf(data.accelY * data.accelY + data.accelZ * data.accelZ))
+                 * RAD_TO_DEG;
+
+    // Yaw integrado do giroscópio Z (sem referência absoluta → drift esperado)
+    data.yaw += data.gyroZ * dt;
+    if (data.yaw >  180.0f) data.yaw -= 360.0f;
+    if (data.yaw < -180.0f) data.yaw += 360.0f;
 }

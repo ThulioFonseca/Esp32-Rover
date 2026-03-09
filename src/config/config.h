@@ -32,8 +32,8 @@ namespace Config {
 
   // IMU (MPU-9250 / 6500 / 9255 via I2C)
   // AD0 = LOW  → 0x68 | AD0 = HIGH → 0x69
-  constexpr uint8_t IMU_I2C_ADDR     = 0x69;
-  constexpr uint32_t IMU_I2C_FREQ_HZ = 400000; // Fast Mode (400 kHz)
+  constexpr uint8_t IMU_I2C_ADDR     = 0x68; // AD0 = LOW (GND)
+  constexpr uint32_t IMU_I2C_FREQ_HZ = 100000; // Standard Mode (100 kHz) — mais estável em protoboard
   extern bool IMU_ENABLED;
 }
 
