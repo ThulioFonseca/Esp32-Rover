@@ -14,10 +14,16 @@
 #include "controllers/tank_controller.h"
 #include "web/web_server_manager.h"
 #include "config/config.h"
+#include "freertos/semphr.h"
 
 // Instâncias globais dos subsistemas
 TankController tankController;
 WebServerManager webServer("ESP32-ROVER", "rover1234");
+
+// Mutex para proteger o acesso ao tankController entre os dois núcleos:
+// - Core 1: TankControlTask (escrita a 50Hz)
+// - Core 0: Callbacks do AsyncWebServer (leitura/escrita esporádica)
+SemaphoreHandle_t tankMutex = NULL;
 
 /**
  * Task de Controle em Tempo Real (Core 1)
@@ -39,8 +45,12 @@ void tankControlTask(void* pvParameters) {
         // Garante precisão temporal e libera CPU para tarefas de menor prioridade (IDLE/Watchdog)
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
         
-        // Executa lógica de controle
-        tankController.update();
+        // Adquire o mutex com timeout curto (5ms) para não comprometer o ciclo de 20ms.
+        // Se o Core 0 retiver o mutex por mais tempo, este ciclo é pulado com segurança.
+        if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+            tankController.update();
+            xSemaphoreGive(tankMutex);
+        }
     }
 }
 
@@ -89,7 +99,15 @@ void setup() {
     }
   }
 
-    // 4. Cria as tasks do sistema
+    // 4. Cria o mutex de sincronização entre cores ANTES das tasks
+    tankMutex = xSemaphoreCreateMutex();
+    if (tankMutex == NULL) {
+        Serial.println("[ERRO] Falha ao criar mutex! Sistema não pode iniciar.");
+        while(1) { delay(1000); }
+    }
+    Serial.println("[INFO] Mutex de sincronização criado");
+
+    // 5. Cria as tasks do sistema
 
     // Cria a task do WebServer no Core 0
     xTaskCreatePinnedToCore(

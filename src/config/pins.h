@@ -19,10 +19,13 @@ namespace Pins {
   constexpr uint8_t SCL = 22;
   
   // SPI (futuro)
-  constexpr uint8_t MOSI = 23;
-  constexpr uint8_t MISO = 19;
-  constexpr uint8_t SCK = 18;
-  constexpr uint8_t CS = 5;
+  // ATENÇÃO: GPIO 18 e 19 conflitam com ESC_RIGHT e ESC_LEFT!
+  // Ao usar SPI, os ESCs devem ser realocados para outros pinos.
+  // Sugestão de pinos livres para ESCs: GPIO 25 e 26.
+  constexpr uint8_t SPI_MOSI = 23;
+  constexpr uint8_t SPI_MISO = 12; // Movido de 19 (conflito com ESC_LEFT)
+  constexpr uint8_t SPI_SCK  = 14; // Movido de 18 (conflito com ESC_RIGHT)
+  constexpr uint8_t SPI_CS   = 5;
 }
 
 #endif

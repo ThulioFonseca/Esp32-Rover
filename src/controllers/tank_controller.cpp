@@ -132,11 +132,9 @@ void TankController::handleTimeout() {
     debugManager.printTimeout();
   }
   
-  // Verificar se o sinal voltou
-  if (channelManager.isDataValid() && !channelManager.hasTimeout()) {
-    currentState = Types::ARMED;
-    debugManager.printSystemStatus(currentState);
-  }
+  // Nota: a recuperação do estado TIMEOUT → ARMED é feita exclusivamente
+  // em updateState(), que é chamado antes deste método em update().
+  // Não duplicar a lógica de transição aqui para evitar inconsistências.
 }
 
 void TankController::processControls() {

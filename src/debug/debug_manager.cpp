@@ -2,7 +2,9 @@
 #include "../config/config.h"
 #include <Arduino.h>
 
-DebugManager::DebugManager() : isEnabled(true), lastPrintTime(0) {}
+// Inicializa desabilitado por padrão, alinhado com Config::DEBUG_ENABLED.
+// O método initialize() ou setEnabled() deve ser chamado explicitamente para ativar.
+DebugManager::DebugManager() : isEnabled(false), lastPrintTime(0) {}
 
 void DebugManager::initialize() {
   // Debug manager não precisa de inicialização especial

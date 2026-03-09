@@ -18,6 +18,13 @@ void ChannelManager::update() {
   if (!isInitialized) return;
   
   updateChannelData();
+  
+  // Sincroniza a flag isValid com o estado de timeout.
+  // Garante que isDataValid() reflita corretamente a perda de sinal,
+  // e não fique travada em 'true' após o primeiro dado recebido.
+  if (hasTimeout()) {
+    channelData.isValid = false;
+  }
 }
 
 void ChannelManager::updateChannelData() {
