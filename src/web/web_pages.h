@@ -16,7 +16,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 <body>
     <div class="app-container">
         <header>
-            <h1>ESP32 Rover</h1>
+            <h1>ESP32 <span>Rover</span></h1>
             <div class="connection-status" id="connectionStatus">Connected</div>
         </header>
         
@@ -61,13 +61,17 @@ const char index_html[] PROGMEM = R"rawliteral(
                         <h3>Main Channels</h3>
                         <div class="channel-group">
                             <label>Throttle</label>
-                            <div class="progress-bar"><div id="ch-throttle" class="fill"></div></div>
-                            <span id="val-throttle">1500</span>
+                            <div class="channel-row">
+                                <div class="progress-bar"><div id="ch-throttle" class="fill"></div></div>
+                                <span class="val" id="val-throttle">1500</span>
+                            </div>
                         </div>
                         <div class="channel-group">
                             <label>Steering</label>
-                            <div class="progress-bar"><div id="ch-steering" class="fill"></div></div>
-                            <span id="val-steering">1500</span>
+                            <div class="channel-row">
+                                <div class="progress-bar"><div id="ch-steering" class="fill"></div></div>
+                                <span class="val" id="val-steering">1500</span>
+                            </div>
                         </div>
                     </div>
                     <div class="card">
@@ -78,34 +82,34 @@ const char index_html[] PROGMEM = R"rawliteral(
             </div>
 
             <div id="sensors" class="tab-content">
-                <div id="imu-offline" class="card" style="display:none; border-left: 4px solid #e74c3c;">
-                    <p style="margin:0; color:#e74c3c; font-weight:bold;">⚠ IMU não disponível ou sem dados válidos</p>
+                <div id="imu-offline" class="card" style="display:none; border-left: 4px solid var(--watermelon);">
+                    <p style="margin:0; color:var(--watermelon); font-weight:bold; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">⚠ IMU offline or data invalid</p>
                 </div>
                 <div class="dashboard-grid">
                     <div class="card">
                         <h3>Orientation</h3>
-                        <div class="sensor-row"><span class="label">Roll</span>  <span class="value" id="imu-roll">--</span> <span class="unit">°</span></div>
-                        <div class="sensor-row"><span class="label">Pitch</span> <span class="value" id="imu-pitch">--</span> <span class="unit">°</span></div>
-                        <div class="sensor-row"><span class="label">Yaw</span>   <span class="value" id="imu-yaw">--</span> <span class="unit">°</span></div>
-                        <div class="sensor-row" style="margin-top:12px;"><span class="label">Temperature</span> <span class="value" id="imu-temp">--</span> <span class="unit">°C</span></div>
+                        <div class="sensor-row"><span class="label">Roll</span><div class="sensor-data"><span class="value" id="imu-roll">--</span><span class="unit">°</span></div></div>
+                        <div class="sensor-row"><span class="label">Pitch</span><div class="sensor-data"><span class="value" id="imu-pitch">--</span><span class="unit">°</span></div></div>
+                        <div class="sensor-row"><span class="label">Yaw</span><div class="sensor-data"><span class="value" id="imu-yaw">--</span><span class="unit">°</span></div></div>
+                        <div class="sensor-row" style="margin-top:12px;"><span class="label">Temperature</span><div class="sensor-data"><span class="value" id="imu-temp">--</span><span class="unit">°C</span></div></div>
                     </div>
                     <div class="card">
                         <h3>Accelerometer (g)</h3>
-                        <div class="sensor-row"><span class="label">X</span> <span class="value" id="accel-x">--</span></div>
-                        <div class="sensor-row"><span class="label">Y</span> <span class="value" id="accel-y">--</span></div>
-                        <div class="sensor-row"><span class="label">Z</span> <span class="value" id="accel-z">--</span></div>
+                        <div class="sensor-row"><span class="label">X</span><div class="sensor-data"><span class="value" id="accel-x">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-row"><span class="label">Y</span><div class="sensor-data"><span class="value" id="accel-y">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-row"><span class="label">Z</span><div class="sensor-data"><span class="value" id="accel-z">--</span><span class="unit"></span></div></div>
                     </div>
                     <div class="card">
                         <h3>Gyroscope (°/s)</h3>
-                        <div class="sensor-row"><span class="label">X</span> <span class="value" id="gyro-x">--</span></div>
-                        <div class="sensor-row"><span class="label">Y</span> <span class="value" id="gyro-y">--</span></div>
-                        <div class="sensor-row"><span class="label">Z</span> <span class="value" id="gyro-z">--</span></div>
+                        <div class="sensor-row"><span class="label">X</span><div class="sensor-data"><span class="value" id="gyro-x">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-row"><span class="label">Y</span><div class="sensor-data"><span class="value" id="gyro-y">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-row"><span class="label">Z</span><div class="sensor-data"><span class="value" id="gyro-z">--</span><span class="unit"></span></div></div>
                     </div>
                     <div class="card">
                         <h3>Magnetometer (µT)</h3>
-                        <div class="sensor-row"><span class="label">X</span> <span class="value" id="mag-x">--</span></div>
-                        <div class="sensor-row"><span class="label">Y</span> <span class="value" id="mag-y">--</span></div>
-                        <div class="sensor-row"><span class="label">Z</span> <span class="value" id="mag-z">--</span></div>
+                        <div class="sensor-row"><span class="label">X</span><div class="sensor-data"><span class="value" id="mag-x">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-row"><span class="label">Y</span><div class="sensor-data"><span class="value" id="mag-y">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-row"><span class="label">Z</span><div class="sensor-data"><span class="value" id="mag-z">--</span><span class="unit"></span></div></div>
                     </div>
                 </div>
             </div>
@@ -121,7 +125,7 @@ const char index_html[] PROGMEM = R"rawliteral(
                                 <span class="slider round"></span>
                             </label>
                         </div>
-                        <p style="font-size: 0.8em; color: #7f8c8d;">Enables detailed logging to the Serial Monitor via USB.</p>
+                        <p style="font-size: 0.8em; color: var(--text-muted); margin-top: 4px;">Enables detailed logging to the Serial Monitor via USB.</p>
                     </div>
                 </div>
             </div>
@@ -134,131 +138,217 @@ const char index_html[] PROGMEM = R"rawliteral(
 
 const char style_css[] PROGMEM = R"rawliteral(
 :root {
-    --primary-color: #2c3e50;
-    --accent-color: #3498db;
-    --bg-color: #f4f7f6;
-    --card-bg: #ffffff;
-    --text-color: #333;
+    --black: #000100;
+    --neon-chartreuse: #ddf102;
+    --iron-grey: #464646;
+    --watermelon: #e83754;
+    --bright-snow: #f8f8f8;
+    
+    --bg-color: #0d0e0d; /* Ligeiramente mais claro que o preto puro para contraste */
+    --card-bg: rgba(70, 70, 70, 0.4);
+    --card-border: rgba(70, 70, 70, 0.6);
+    --text-main: var(--bright-snow);
+    --text-muted: #a0a0a0;
 }
 
+* { box-sizing: border-box; }
+
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background-color: var(--bg-color);
-    color: var(--text-color);
+    color: var(--text-main);
     margin: 0;
     padding: 0;
+    -webkit-font-smoothing: antialiased;
 }
 
 .app-container {
-    max-width: 800px;
+    max-width: 900px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 24px;
 }
 
 header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
+    margin-bottom: 32px;
+    border-bottom: 1px solid var(--card-border);
+    padding-bottom: 16px;
 }
 
-h1 { margin: 0; color: var(--primary-color); }
+h1 { 
+    margin: 0; 
+    color: var(--bright-snow); 
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    text-transform: uppercase;
+}
+h1 span { color: var(--neon-chartreuse); }
 
 .connection-status {
-    padding: 5px 10px;
-    background-color: #2ecc71;
-    color: white;
-    border-radius: 15px;
+    padding: 6px 14px;
+    background-color: rgba(221, 241, 2, 0.15);
+    color: var(--neon-chartreuse);
+    border: 1px solid var(--neon-chartreuse);
+    border-radius: 20px;
     font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
 }
 
 .tabs {
     display: flex;
     background: var(--card-bg);
-    border-radius: 10px;
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
     overflow: hidden;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    margin-bottom: 20px;
+    margin-bottom: 24px;
+    backdrop-filter: blur(10px);
 }
 
 .tab-btn {
     flex: 1;
-    padding: 15px;
+    padding: 16px;
     border: none;
     background: none;
     cursor: pointer;
-    font-weight: bold;
-    color: #7f8c8d;
-    transition: all 0.3s ease;
+    font-weight: 600;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
 }
+
+.tab-btn:hover { color: var(--bright-snow); background: rgba(255,255,255,0.05); }
 
 .tab-btn.active {
-    color: var(--accent-color);
-    border-bottom: 3px solid var(--accent-color);
-    background-color: #ecf0f1;
+    color: var(--black);
+    background-color: var(--neon-chartreuse);
 }
 
-.tab-content { display: none; animation: fadeIn 0.3s; }
+.tab-content { display: none; animation: fadeIn 0.4s ease; }
 .tab-content.active { display: block; }
 
 .dashboard-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 20px;
 }
 
 .card {
     background: var(--card-bg);
-    padding: 20px;
-    border-radius: 10px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    border: 1px solid var(--card-border);
+    padding: 24px;
+    border-radius: 12px;
+    backdrop-filter: blur(10px);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.card h3 { margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+.card:hover { border-color: rgba(221, 241, 2, 0.3); }
 
-ul { list-style: none; padding: 0; }
-li { padding: 8px 0; border-bottom: 1px solid #f9f9f9; display: flex; justify-content: space-between; }
-li span.label { font-weight: 500; color: #555; }
-li span.value { font-weight: bold; color: #2c3e50; font-family: monospace; }
-
-.placeholder-container {
-    text-align: center;
-    padding: 50px;
-    color: #95a5a6;
+.card h3 { 
+    margin-top: 0; 
+    color: var(--text-muted); 
+    font-size: 0.85rem; 
+    text-transform: uppercase; 
+    letter-spacing: 1px;
+    border-bottom: 1px solid var(--card-border); 
+    padding-bottom: 12px; 
+    margin-bottom: 16px;
 }
-.placeholder-container .icon { font-size: 3rem; margin-bottom: 10px; }
 
-.channel-group { margin-bottom: 15px; }
-.channel-group label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9em; color: #555; }
-.progress-bar { background: #eee; height: 12px; border-radius: 6px; overflow: hidden; display: inline-block; width: 75%; vertical-align: middle; margin-right: 10px; }
-.progress-bar .fill { background: var(--accent-color); height: 100%; width: 50%; transition: width 0.1s ease; }
-.channel-group span { display: inline-block; width: 15%; text-align: right; font-family: monospace; font-weight: bold; font-size: 0.9em; }
+ul { list-style: none; padding: 0; margin: 0; }
+li { padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
+li:last-child { border-bottom: none; }
+li span.label { font-weight: 500; color: var(--text-muted); font-size: 0.9rem; }
+li span.value { font-weight: 600; color: var(--bright-snow); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+
+.channel-group { margin-bottom: 18px; }
+.channel-group label { display: block; font-weight: 500; margin-bottom: 8px; font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px;}
+
+.channel-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.progress-bar { 
+    background: rgba(0,0,0,0.5); 
+    height: 8px; 
+    border-radius: 4px; 
+    overflow: hidden; 
+    flex-grow: 1; /* Preenche o espaço disponível */
+    border: 1px solid var(--iron-grey);
+}
+.progress-bar .fill { 
+    background: var(--neon-chartreuse); 
+    height: 100%; 
+    width: 50%; 
+    transition: width 0.1s linear; 
+    box-shadow: 0 0 10px rgba(221, 241, 2, 0.5);
+}
+.channel-group span.val { font-family: monospace; font-weight: 600; font-size: 0.95em; color: var(--bright-snow); min-width: 45px; text-align: right; }
 
 /* Switch Toggle */
-.switch { position: relative; display: inline-block; width: 50px; height: 28px; flex-shrink: 0; }
+.switch { position: relative; display: inline-block; width: 46px; height: 24px; flex-shrink: 0; }
 .switch input { opacity: 0; width: 0; height: 0; }
-.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; }
-.slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; }
-input:checked + .slider { background-color: var(--accent-color); }
-input:focus + .slider { box-shadow: 0 0 1px var(--accent-color); }
-input:checked + .slider:before { transform: translateX(22px); }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.6); border: 1px solid var(--iron-grey); transition: .3s; }
+.slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: var(--text-muted); transition: .3s; }
+input:checked + .slider { background-color: rgba(221, 241, 2, 0.2); border-color: var(--neon-chartreuse); }
+input:focus + .slider { box-shadow: 0 0 1px var(--neon-chartreuse); }
+input:checked + .slider:before { transform: translateX(22px); background-color: var(--neon-chartreuse); box-shadow: 0 0 8px var(--neon-chartreuse); }
 .slider.round { border-radius: 34px; }
 .slider.round:before { border-radius: 50%; }
-.setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+
+.setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 
 /* Armed Status Styles */
-#armed-card { transition: all 0.3s ease; border-left: 5px solid transparent; margin-bottom: 20px; }
-.armed-true { background-color: #ffebee !important; border-left-color: #e53935 !important; }
-.armed-false { background-color: #e8f5e9 !important; border-left-color: #43a047 !important; }
-#armed-label { font-size: 1.1em; font-weight: 800; letter-spacing: 0.5px; }
+#armed-card { transition: all 0.3s ease; border-left: 4px solid transparent; margin-bottom: 24px; }
+.armed-true { 
+    background-color: rgba(232, 55, 84, 0.1) !important; 
+    border-color: var(--watermelon) !important;
+    border-left-width: 6px !important;
+}
+.armed-false { 
+    background-color: rgba(221, 241, 2, 0.05) !important; 
+    border-color: var(--card-border) !important; 
+    border-left-color: var(--neon-chartreuse) !important;
+}
+#armed-label { font-size: 1.1em; font-weight: 700; letter-spacing: 1px; color: var(--bright-snow); }
 
 /* Sensor rows */
-.sensor-row { display: flex; align-items: baseline; padding: 6px 0; border-bottom: 1px solid #f9f9f9; }
-.sensor-row .label { font-weight: 500; color: #555; width: 90px; flex-shrink: 0; }
-.sensor-row .value { font-family: monospace; font-weight: bold; color: #2c3e50; margin-right: 4px; }
-.sensor-row .unit { font-size: 0.8em; color: #95a5a6; }
+.sensor-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); gap: 12px;}
+.sensor-row:last-child { border-bottom: none; }
+.sensor-row .label { font-weight: 500; color: var(--text-muted); font-size: 0.9rem; flex-grow: 1; text-align: left; }
+.sensor-row .sensor-data { display: flex; align-items: baseline; justify-content: flex-end; min-width: 80px; }
+.sensor-row .value { font-family: ui-monospace, monospace; font-weight: 600; color: var(--bright-snow); margin-right: 6px; font-size: 1rem; text-align: right; }
+.sensor-row .unit { font-size: 0.8em; color: var(--iron-grey); width: 20px; text-align: left;}
 
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+#imu-offline {
+    border-color: var(--watermelon);
+    background: rgba(232, 55, 84, 0.1);
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Responsivo para Smartphone */
+@media (max-width: 600px) {
+    .app-container { padding: 12px; }
+    header { margin-bottom: 20px; padding-bottom: 12px; }
+    h1 { font-size: 1.5rem; }
+    .connection-status { padding: 4px 10px; font-size: 0.7rem; }
+    
+    .tabs { flex-wrap: wrap; border-radius: 8px; margin-bottom: 16px; }
+    .tab-btn { padding: 12px 6px; font-size: 0.75rem; flex: 1 1 50%; }
+    .tab-btn:nth-child(1), .tab-btn:nth-child(2) { border-bottom: 1px solid var(--card-border); }
+    
+    .card { padding: 16px; }
+    .dashboard-grid { gap: 16px; }
+    
+    #armed-label { font-size: 0.9rem; }
+    
+    li span.label, .sensor-row .label { font-size: 0.85rem; }
+    li span.value, .sensor-row .value { font-size: 0.95rem; }
+}
 )rawliteral";
 
 const char script_js[] PROGMEM = R"rawliteral(
@@ -309,8 +399,10 @@ function updateRadio() {
                 auxContainer.innerHTML += `
                     <div class="channel-group">
                         <label>AUX ${i+1}</label>
-                        <div class="progress-bar"><div id="ch-aux${i}" class="fill" style="width: 50%"></div></div>
-                        <span id="val-aux${i}">${val}</span>
+                        <div class="channel-row">
+                            <div class="progress-bar"><div id="ch-aux${i}" class="fill" style="width: 50%"></div></div>
+                            <span class="val" id="val-aux${i}">${val}</span>
+                        </div>
                     </div>`;
             });
         }
@@ -377,12 +469,12 @@ function updateArmedStyle(isArmed) {
         card.classList.remove('armed-false');
         card.classList.add('armed-true');
         label.innerText = "SYSTEM ARMED (MOTORS ACTIVE)";
-        label.style.color = "#c62828";
+        label.style.color = "var(--watermelon)";
     } else {
         card.classList.remove('armed-true');
         card.classList.add('armed-false');
         label.innerText = "SYSTEM DISARMED (SAFE MODE)";
-        label.style.color = "#2e7d32";
+        label.style.color = "var(--text-muted)";
     }
 }
 
