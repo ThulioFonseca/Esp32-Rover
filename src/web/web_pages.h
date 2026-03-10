@@ -112,6 +112,13 @@ const char index_html[] PROGMEM = R"rawliteral(
                         <div class="sensor-row"><span class="label">Z</span><div class="sensor-data"><span class="value" id="mag-z">--</span><span class="unit"></span></div></div>
                     </div>
                 </div>
+                
+                <div style="margin-top: 20px;">
+                    <button id="btn-calibrate" onclick="calibrateIMU()" class="btn-primary" style="width: 100%; background: transparent; border: 1px solid var(--neon-chartreuse); color: var(--neon-chartreuse);">
+                        CALIBRATE IMU (ZERO YAW)
+                    </button>
+                    <p style="font-size: 0.8em; color: var(--text-muted); text-align: center; margin-top: 8px;">Keep the rover completely still before calibrating.</p>
+                </div>
             </div>
 
             <div id="config" class="tab-content">
@@ -550,6 +557,43 @@ function toggleDebug() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({debug: enabled})
     }).catch(console.error);
+}
+
+function calibrateIMU() {
+    const btn = document.getElementById('btn-calibrate');
+    const originalText = btn.innerText;
+    
+    btn.innerText = "CALIBRATING...";
+    btn.disabled = true;
+    btn.style.opacity = "0.5";
+    
+    fetch('/api/calibrate-imu', { method: 'POST' })
+    .then(r => r.json())
+    .then(d => {
+        // A calibração assíncrona leva ~2.5s no backend
+        setTimeout(() => {
+            btn.innerText = "CALIBRATION COMPLETE";
+            btn.style.color = "var(--black)";
+            btn.style.background = "var(--neon-chartreuse)";
+            
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.disabled = false;
+                btn.style.opacity = "1";
+                btn.style.color = "var(--neon-chartreuse)";
+                btn.style.background = "transparent";
+            }, 3000);
+        }, 2500);
+    })
+    .catch(err => {
+        console.error(err);
+        btn.innerText = "ERROR";
+        setTimeout(() => {
+            btn.innerText = originalText;
+            btn.disabled = false;
+            btn.style.opacity = "1";
+        }, 2000);
+    });
 }
 
 function toggleArmed() {

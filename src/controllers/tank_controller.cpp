@@ -94,6 +94,10 @@ bool TankController::isSystemArmed() const {
     return systemArmed;
 }
 
+void TankController::calibrateImu() {
+    imuSensor.startCalibration();
+}
+
 void TankController::updateSystem() {
     if (!channelManager.isDataValid()) return;
 

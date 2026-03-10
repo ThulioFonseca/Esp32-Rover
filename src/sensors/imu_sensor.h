@@ -27,6 +27,9 @@ public:
     // Lê novos dados e atualiza os ângulos. Deve ser chamado a ~50 Hz.
     void update();
 
+    // Inicia uma nova calibração e reseta o Yaw. Retorna imediatamente (não bloqueante).
+    void startCalibration();
+
     const Types::ImuData& getData() const;
     bool isDataValid() const;
 
@@ -40,11 +43,17 @@ private:
     float gyroBiasY;
     float gyroBiasZ;
 
+    // Estado da calibração não-bloqueante
+    bool isCalibrating;
+    int  calibrationSamples;
+    long calibSumX, calibSumY, calibSumZ;
+    static constexpr int CALIBRATION_SAMPLES_NEEDED = 200;
+
     bool writeRegister(uint8_t reg, uint8_t value);
     bool readRegisters(uint8_t reg, uint8_t count, uint8_t* buf);
     void readSensorData();
     void computeAngles(float dt);
-    void calibrateGyro();
+    void processCalibration();
 };
 
 #endif

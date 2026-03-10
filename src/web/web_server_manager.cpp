@@ -213,6 +213,22 @@ void WebServerManager::setupRoutes() {
         request->send(200, "application/json", response);
     });
 
+    // Calibrate IMU API
+    server.on("/api/calibrate-imu", HTTP_POST, [](AsyncWebServerRequest *request){
+        if (tankMutex == nullptr) {
+            request->send(503, "application/json", "{\"error\":\"system not ready\"}");
+            return;
+        }
+        
+        if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+            tankController.calibrateImu();
+            xSemaphoreGive(tankMutex);
+            request->send(200, "application/json", "{\"status\":\"started\"}");
+        } else {
+            request->send(503, "application/json", "{\"error\":\"system busy\"}");
+        }
+    });
+
     server.on("/api/settings", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
     [](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t index, size_t total){
         JsonDocument doc;

@@ -31,6 +31,8 @@ public:
   Types::SystemState          getSystemState()    const;
   bool                        isSystemArmed()     const;
 
+  void calibrateImu(); // Dispara calibração assíncrona
+
 private:
   void updateSystem();
   void handleTimeout();

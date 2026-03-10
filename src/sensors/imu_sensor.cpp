@@ -18,7 +18,10 @@ static constexpr float TEMP_OFF   = 21.0f;    // Offset de temperatura (°C)
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-ImuSensor::ImuSensor() : initialized(false), lastUpdateMs(0), gyroBiasX(0), gyroBiasY(0), gyroBiasZ(0) {}
+ImuSensor::ImuSensor() : initialized(false), lastUpdateMs(0), 
+                         gyroBiasX(0), gyroBiasY(0), gyroBiasZ(0),
+                         isCalibrating(false), calibrationSamples(0),
+                         calibSumX(0), calibSumY(0), calibSumZ(0) {}
 
 bool ImuSensor::initialize() {
     Wire.begin(Pins::SDA, Pins::SCL, Config::IMU_I2C_FREQ_HZ);
@@ -46,13 +49,25 @@ bool ImuSensor::initialize() {
     // Acelerômetro: ±4g → 8192 LSB/g
     if (!writeRegister(REG_ACCEL_CONFIG, 0x08))  return false;
 
-    // Calibração do giroscópio para remover o bias (zero-rate offset)
-    calibrateGyro();
+    // Inicia a calibração assíncrona do giroscópio para remover o bias (zero-rate offset)
+    startCalibration();
 
     lastUpdateMs = millis();
     initialized  = true;
     Serial.println("[INFO] MPU-6500 inicializado (±4g / ±500°/s / 100 Hz)");
     return true;
+}
+
+void ImuSensor::startCalibration() {
+    if (!initialized) return;
+    
+    Serial.println("[INFO] Iniciando calibração do IMU. Mantenha o rover parado...");
+    isCalibrating = true;
+    calibrationSamples = 0;
+    calibSumX = 0;
+    calibSumY = 0;
+    calibSumZ = 0;
+    data.yaw = 0.0f; // Reseta o heading
 }
 
 void ImuSensor::update() {
@@ -61,6 +76,11 @@ void ImuSensor::update() {
     unsigned long now = millis();
     float dt = (now - lastUpdateMs) / 1000.0f;
     lastUpdateMs = now;
+
+    if (isCalibrating) {
+        processCalibration();
+        return; // Durante a calibração, não atualiza os ângulos normais
+    }
 
     readSensorData();
     computeAngles(dt);
@@ -142,38 +162,35 @@ void ImuSensor::computeAngles(float dt) {
     if (data.yaw < -180.0f) data.yaw += 360.0f;
 }
 
-// ── Calibração ────────────────────────────────────────────────────────────────
+// ── Calibração Assíncrona ─────────────────────────────────────────────────────
 
-void ImuSensor::calibrateGyro() {
-    Serial.println("[INFO] Calibrando giroscópio... Mantenha o rover parado.");
-    
-    long sumX = 0, sumY = 0, sumZ = 0;
-    const int numSamples = 200;
-    
-    // Descarta as primeiras leituras para estabilização dos filtros internos
-    for (int i = 0; i < 50; i++) {
-        uint8_t buf[6];
-        readRegisters(0x43, 6, buf); // Lendo direto de GYRO_XOUT_H
-        delay(10);
-    }
-
-    // Acumula 200 amostras (~2 segundos)
-    for (int i = 0; i < numSamples; i++) {
-        uint8_t buf[6];
-        if (readRegisters(0x43, 6, buf)) {
-            sumX += (int16_t)((buf[0] << 8) | buf[1]);
-            sumY += (int16_t)((buf[2] << 8) | buf[3]);
-            sumZ += (int16_t)((buf[4] << 8) | buf[5]);
+void ImuSensor::processCalibration() {
+    uint8_t buf[6];
+    // Lê apenas os registradores do giroscópio (0x43)
+    if (readRegisters(0x43, 6, buf)) {
+        // Ignora as primeiras 50 amostras (estabilização térmica/filtros)
+        if (calibrationSamples < 50) {
+            calibrationSamples++;
+            return;
         }
-        delay(10); // Respeita a taxa de amostragem de 100 Hz
+
+        calibSumX += (int16_t)((buf[0] << 8) | buf[1]);
+        calibSumY += (int16_t)((buf[2] << 8) | buf[3]);
+        calibSumZ += (int16_t)((buf[4] << 8) | buf[5]);
+        
+        calibrationSamples++;
+
+        // Verifica se terminou (50 descartadas + CALIBRATION_SAMPLES_NEEDED úteis)
+        if (calibrationSamples >= (50 + CALIBRATION_SAMPLES_NEEDED)) {
+            gyroBiasX = (calibSumX / (float)CALIBRATION_SAMPLES_NEEDED) / GYRO_SENS;
+            gyroBiasY = (calibSumY / (float)CALIBRATION_SAMPLES_NEEDED) / GYRO_SENS;
+            gyroBiasZ = (calibSumZ / (float)CALIBRATION_SAMPLES_NEEDED) / GYRO_SENS;
+            
+            isCalibrating = false;
+            
+            Serial.print("[INFO] Calibração concluída! Bias Z: ");
+            Serial.print(gyroBiasZ, 4);
+            Serial.println(" deg/s");
+        }
     }
-
-    // Calcula a média em deg/s
-    gyroBiasX = (sumX / (float)numSamples) / GYRO_SENS;
-    gyroBiasY = (sumY / (float)numSamples) / GYRO_SENS;
-    gyroBiasZ = (sumZ / (float)numSamples) / GYRO_SENS;
-
-    Serial.print("[INFO] Calibração concluída. Bias Z: ");
-    Serial.print(gyroBiasZ, 4);
-    Serial.println(" deg/s");
 }
