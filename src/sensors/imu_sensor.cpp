@@ -18,7 +18,7 @@ static constexpr float TEMP_OFF   = 21.0f;    // Offset de temperatura (°C)
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-ImuSensor::ImuSensor() : initialized(false), lastUpdateMs(0) {}
+ImuSensor::ImuSensor() : initialized(false), lastUpdateMs(0), gyroBiasX(0), gyroBiasY(0), gyroBiasZ(0) {}
 
 bool ImuSensor::initialize() {
     Wire.begin(Pins::SDA, Pins::SCL, Config::IMU_I2C_FREQ_HZ);
@@ -45,6 +45,9 @@ bool ImuSensor::initialize() {
 
     // Acelerômetro: ±4g → 8192 LSB/g
     if (!writeRegister(REG_ACCEL_CONFIG, 0x08))  return false;
+
+    // Calibração do giroscópio para remover o bias (zero-rate offset)
+    calibrateGyro();
 
     lastUpdateMs = millis();
     initialized  = true;
@@ -106,9 +109,10 @@ void ImuSensor::readSensorData() {
     // Temperatura: TEMP_OUT / 321.0 + 21.0 (MPU-6500 datasheet §4.16)
     data.temperature = toInt16(buf[6], buf[7]) / TEMP_SENS + TEMP_OFF;
 
-    data.gyroX = toInt16(buf[8],  buf[9])  / GYRO_SENS;
-    data.gyroY = toInt16(buf[10], buf[11]) / GYRO_SENS;
-    data.gyroZ = toInt16(buf[12], buf[13]) / GYRO_SENS;
+    // Giroscópio: converte raw → deg/s e aplica compensação do bias
+    data.gyroX = (toInt16(buf[8],  buf[9])  / GYRO_SENS) - gyroBiasX;
+    data.gyroY = (toInt16(buf[10], buf[11]) / GYRO_SENS) - gyroBiasY;
+    data.gyroZ = (toInt16(buf[12], buf[13]) / GYRO_SENS) - gyroBiasZ;
 
     // MPU-6500 não tem magnetômetro — campos mag permanecem em 0.0
 
@@ -125,8 +129,51 @@ void ImuSensor::computeAngles(float dt) {
                         sqrtf(data.accelY * data.accelY + data.accelZ * data.accelZ))
                  * RAD_TO_DEG;
 
-    // Yaw integrado do giroscópio Z (sem referência absoluta → drift esperado)
-    data.yaw += data.gyroZ * dt;
+    // Aplica deadband (zona morta) no giroscópio Z para evitar drift por micro-ruídos estáticos
+    float gz = data.gyroZ;
+    if (abs(gz) < 0.5f) { // Se a rotação for menor que 0.5 deg/s, considera como parado
+        gz = 0.0f;
+    }
+
+    // Yaw integrado do giroscópio Z (sem referência absoluta → drift longo prazo esperado, 
+    // mas drift estático de curto prazo agora está mitigado pelo bias+deadband)
+    data.yaw += gz * dt;
     if (data.yaw >  180.0f) data.yaw -= 360.0f;
     if (data.yaw < -180.0f) data.yaw += 360.0f;
+}
+
+// ── Calibração ────────────────────────────────────────────────────────────────
+
+void ImuSensor::calibrateGyro() {
+    Serial.println("[INFO] Calibrando giroscópio... Mantenha o rover parado.");
+    
+    long sumX = 0, sumY = 0, sumZ = 0;
+    const int numSamples = 200;
+    
+    // Descarta as primeiras leituras para estabilização dos filtros internos
+    for (int i = 0; i < 50; i++) {
+        uint8_t buf[6];
+        readRegisters(0x43, 6, buf); // Lendo direto de GYRO_XOUT_H
+        delay(10);
+    }
+
+    // Acumula 200 amostras (~2 segundos)
+    for (int i = 0; i < numSamples; i++) {
+        uint8_t buf[6];
+        if (readRegisters(0x43, 6, buf)) {
+            sumX += (int16_t)((buf[0] << 8) | buf[1]);
+            sumY += (int16_t)((buf[2] << 8) | buf[3]);
+            sumZ += (int16_t)((buf[4] << 8) | buf[5]);
+        }
+        delay(10); // Respeita a taxa de amostragem de 100 Hz
+    }
+
+    // Calcula a média em deg/s
+    gyroBiasX = (sumX / (float)numSamples) / GYRO_SENS;
+    gyroBiasY = (sumY / (float)numSamples) / GYRO_SENS;
+    gyroBiasZ = (sumZ / (float)numSamples) / GYRO_SENS;
+
+    Serial.print("[INFO] Calibração concluída. Bias Z: ");
+    Serial.print(gyroBiasZ, 4);
+    Serial.println(" deg/s");
 }

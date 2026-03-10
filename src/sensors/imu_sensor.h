@@ -35,10 +35,16 @@ private:
     bool              initialized;
     unsigned long     lastUpdateMs;
 
+    // Valores de calibração do giroscópio (bias/zero-rate offset) em deg/s
+    float gyroBiasX;
+    float gyroBiasY;
+    float gyroBiasZ;
+
     bool writeRegister(uint8_t reg, uint8_t value);
     bool readRegisters(uint8_t reg, uint8_t count, uint8_t* buf);
     void readSensorData();
     void computeAngles(float dt);
+    void calibrateGyro();
 };
 
 #endif
