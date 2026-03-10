@@ -127,6 +127,30 @@ const char index_html[] PROGMEM = R"rawliteral(
                         </div>
                         <p style="font-size: 0.8em; color: var(--text-muted); margin-top: 4px;">Enables detailed logging to the Serial Monitor via USB.</p>
                     </div>
+                    
+                    <div class="card">
+                        <h3>Wi-Fi Configuration</h3>
+                        <div class="setting-item" style="margin-bottom: 15px;">
+                            <label>Network Mode</label>
+                            <select id="wifi-mode" onchange="toggleWifiFields()" class="custom-input">
+                                <option value="0">Access Point (AP)</option>
+                                <option value="1">Station (Client)</option>
+                            </select>
+                        </div>
+                        
+                        <div id="sta-fields" style="display:none; transition: all 0.3s;">
+                            <div class="setting-item" style="flex-direction: column; align-items: flex-start;">
+                                <label style="margin-bottom: 5px; font-size: 0.85em; color: var(--text-muted);">Router SSID</label>
+                                <input type="text" id="sta-ssid" class="custom-input" placeholder="MyNetworkName" style="width: 100%;">
+                            </div>
+                            <div class="setting-item" style="flex-direction: column; align-items: flex-start; margin-top: 10px;">
+                                <label style="margin-bottom: 5px; font-size: 0.85em; color: var(--text-muted);">Password</label>
+                                <input type="password" id="sta-pass" class="custom-input" placeholder="••••••••" style="width: 100%;">
+                            </div>
+                        </div>
+                        
+                        <button onclick="saveNetworkSettings()" class="btn-primary" style="margin-top: 20px; width: 100%;">SAVE & REBOOT</button>
+                    </div>
                 </div>
             </div>
         </main>
@@ -299,6 +323,34 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
 
 .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 
+/* Custom Inputs & Buttons */
+.custom-input {
+    background: rgba(0,0,0,0.5);
+    border: 1px solid var(--iron-grey);
+    color: var(--bright-snow);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.2s;
+}
+.custom-input:focus { border-color: var(--neon-chartreuse); }
+
+.btn-primary {
+    background: var(--neon-chartreuse);
+    color: var(--black);
+    border: none;
+    padding: 12px;
+    border-radius: 6px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-transform: uppercase;
+}
+.btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(1px); }
+
 /* Armed Status Styles */
 #armed-card { transition: all 0.3s ease; border-left: 4px solid transparent; margin-bottom: 24px; }
 .armed-true { 
@@ -437,6 +489,55 @@ function loadSettings() {
         if(armedToggle) {
             armedToggle.checked = d.armed;
             updateArmedStyle(d.armed);
+        }
+        
+        // WiFi Settings
+        const wifiMode = document.getElementById('wifi-mode');
+        const staSsid = document.getElementById('sta-ssid');
+        if(wifiMode) {
+            wifiMode.value = d.wifi_mode;
+            toggleWifiFields();
+        }
+        if(staSsid && d.sta_ssid) staSsid.value = d.sta_ssid;
+    })
+    .catch(console.error);
+}
+
+function toggleWifiFields() {
+    const mode = document.getElementById('wifi-mode').value;
+    const fields = document.getElementById('sta-fields');
+    if (mode == "1") {
+        fields.style.display = "block";
+    } else {
+        fields.style.display = "none";
+    }
+}
+
+function saveNetworkSettings() {
+    const mode = parseInt(document.getElementById('wifi-mode').value);
+    const ssid = document.getElementById('sta-ssid').value;
+    const pass = document.getElementById('sta-pass').value;
+    
+    if (mode === 1 && ssid.trim() === '') {
+        alert("Please enter a valid SSID for Station Mode.");
+        return;
+    }
+    
+    const payload = { wifi_mode: mode };
+    if (mode === 1) {
+        payload.sta_ssid = ssid;
+        if (pass) payload.sta_pass = pass;
+    }
+    
+    fetch('/api/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(d => {
+        if(d.status === "rebooting") {
+            alert("Network settings saved. Rover is rebooting to apply changes. You may need to connect to the new network.");
         }
     })
     .catch(console.error);

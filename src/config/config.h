@@ -2,6 +2,7 @@
 #define CONFIG_H
 
 #include <cstdint>
+#include <Arduino.h>
 
 namespace Config {
   // Limites PWM
@@ -22,6 +23,16 @@ namespace Config {
   constexpr unsigned long CONTROL_INTERVAL_MS = 20; // Frequência de controle fixa
   constexpr unsigned long DEBUG_INTERVAL_MS = 100;
   constexpr unsigned long ARMING_TIME_MS = 1500;
+
+  // Configurações de Rede (Persistentes via NVS)
+  extern uint8_t WIFI_MODE; // 0 = AP, 1 = STA
+  extern String STA_SSID;
+  extern String STA_PASS;
+
+  // Função para carregar preferências do NVS
+  void loadPreferences();
+  void saveNetworkPreferences(uint8_t mode, const String& ssid, const String& pass);
+  void saveDebugPreference(bool enabled);
 
   // Debug
   extern bool DEBUG_ENABLED;

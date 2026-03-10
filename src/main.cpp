@@ -50,6 +50,9 @@ void setup() {
     delay(1000);
     Serial.println("\n=== Iniciando Sistema ===");
 
+    // Carregar configurações persistentes (WIFI, etc)
+    Config::loadPreferences();
+
     // 1. SPIFFS — sem interrupções de hardware ativas.
     if (!SPIFFS.begin(true)) {
         Serial.println("[ERRO] Falha ao montar SPIFFS");

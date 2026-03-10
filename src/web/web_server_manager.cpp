@@ -15,17 +15,46 @@ WebServerManager::WebServerManager(const char* ssid, const char* password)
     : ap_ssid(ssid), ap_password(password), server(80) {}
 
 bool WebServerManager::begin() {
-    Serial.println("[INFO] Iniciando modo Access Point...");
+    if (Config::WIFI_MODE == 1 && Config::STA_SSID.length() > 0) {
+        Serial.println("[INFO] Tentando conectar à rede Wi-Fi (Modo Station)...");
+        Serial.print("SSID: "); Serial.println(Config::STA_SSID);
+        
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(Config::STA_SSID.c_str(), Config::STA_PASS.c_str());
+        
+        // Aguarda conexão por até 10 segundos
+        int attempts = 0;
+        while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+            delay(500);
+            Serial.print(".");
+            attempts++;
+        }
+        Serial.println();
 
-    if (!WiFi.softAP(ap_ssid, ap_password)) {
-        Serial.println("[ERRO] Falha ao iniciar Access Point!");
-        return false;
+        if (WiFi.status() == WL_CONNECTED) {
+            Serial.println("[INFO] Conectado com sucesso!");
+            Serial.print("[INFO] IP do Rover: ");
+            Serial.println(WiFi.localIP());
+        } else {
+            Serial.println("[AVISO] Falha ao conectar. Retornando para Modo AP de segurança.");
+            Config::WIFI_MODE = 0; // Fallback temporário em memória (não salva no NVS para não sobrescrever a config do usuário)
+        }
     }
 
-    Serial.print("[INFO] AP iniciado: ");
-    Serial.println(WiFi.softAPSSID());
-    Serial.print("[INFO] IP do AP: ");
-    Serial.println(WiFi.softAPIP());
+    // Se estiver configurado para AP ou se o Station falhou no fallback
+    if (Config::WIFI_MODE == 0) {
+        Serial.println("[INFO] Iniciando modo Access Point...");
+        WiFi.mode(WIFI_AP);
+        if (!WiFi.softAP(ap_ssid, ap_password)) {
+            Serial.println("[ERRO] Falha ao iniciar Access Point!");
+            return false;
+        }
+
+        Serial.print("[INFO] AP iniciado: ");
+        Serial.println(WiFi.softAPSSID());
+        Serial.print("[INFO] IP do AP: ");
+        Serial.println(WiFi.softAPIP());
+    }
 
     setupRoutes();
 
@@ -65,8 +94,16 @@ void WebServerManager::setupRoutes() {
         doc["chip_revision"] = ESP.getChipRevision();
         doc["free_heap"] = ESP.getFreeHeap();
         doc["uptime"] = millis();
-        doc["ip"] = WiFi.softAPIP().toString();
-        doc["ssid"] = WiFi.softAPSSID();
+        
+        if (Config::WIFI_MODE == 1 && WiFi.status() == WL_CONNECTED) {
+            doc["ip"] = WiFi.localIP().toString();
+            doc["ssid"] = WiFi.SSID();
+            doc["mode"] = "Station";
+        } else {
+            doc["ip"] = WiFi.softAPIP().toString();
+            doc["ssid"] = WiFi.softAPSSID();
+            doc["mode"] = "AP";
+        }
         
         String response;
         serializeJson(doc, response);
@@ -167,6 +204,10 @@ void WebServerManager::setupRoutes() {
         JsonDocument doc;
         doc["debug"] = Config::DEBUG_ENABLED;
         doc["armed"] = armed;
+        doc["wifi_mode"] = Config::WIFI_MODE;
+        doc["sta_ssid"] = Config::STA_SSID;
+        // Não enviamos a senha por segurança
+        
         String response;
         serializeJson(doc, response);
         request->send(200, "application/json", response);
@@ -181,21 +222,42 @@ void WebServerManager::setupRoutes() {
             request->send(503, "application/json", "{\"error\":\"system not ready\"}");
             return;
         }
+        
+        bool requiresReboot = false;
+
         if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
             if (!doc["debug"].isNull()) {
-                Config::DEBUG_ENABLED = doc["debug"];
+                Config::saveDebugPreference(doc["debug"]);
                 tankController.setDebugMode(Config::DEBUG_ENABLED);
             }
             if (!doc["armed"].isNull()) {
                 tankController.setSystemArmed(doc["armed"]);
             }
+            
+            // Atualiza rede se os campos forem enviados
+            if (!doc["wifi_mode"].isNull()) {
+                uint8_t mode = doc["wifi_mode"];
+                String ssid = doc["sta_ssid"] | Config::STA_SSID;
+                String pass = doc["sta_pass"] | Config::STA_PASS;
+                
+                // Salva na memória NVS
+                Config::saveNetworkPreferences(mode, ssid, pass);
+                requiresReboot = true;
+            }
+            
             xSemaphoreGive(tankMutex);
         } else {
             request->send(503, "application/json", "{\"error\":\"system busy\"}");
             return;
         }
 
-        request->send(200, "application/json", "{\"status\":\"success\"}");
+        if (requiresReboot) {
+            request->send(200, "application/json", "{\"status\":\"rebooting\"}");
+            delay(500);
+            ESP.restart();
+        } else {
+            request->send(200, "application/json", "{\"status\":\"success\"}");
+        }
     });
 
     // Not found
