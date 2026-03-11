@@ -15,9 +15,12 @@
 #include "config/config.h"
 #include "freertos/semphr.h"
 #include <SPIFFS.h>
+#include "config/pins.h"
+#include "utils/status_led_manager.h"
 
 TankController tankController;
 WebServerManager webServer("ESP32-ROVER", "rover1234");
+StatusLedManager statusLed(LED_BUILTIN);
 
 // Protege tankController contra acesso concorrente entre Core 0 (web) e Core 1 (controle).
 SemaphoreHandle_t tankMutex = NULL;
@@ -29,6 +32,9 @@ void tankControlTask(void* pvParameters) {
 
     while (true) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
+
+        // Atualiza a sinalização visual (não obstrutiva, demora nanosegundos)
+        statusLed.update();
 
         // Timeout de 5 ms: se a web retiver o mutex, este ciclo é descartado sem travar o sistema.
         if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
@@ -50,6 +56,10 @@ void setup() {
     delay(1000);
     Serial.println("\n=== Iniciando Sistema ===");
 
+    statusLed.begin();
+    // Inicia marcando como Warning enquanto não inicializa os periféricos vitais
+    statusLed.setStatus(LED_STATUS_WARNING);
+
     // Carregar configurações persistentes (WIFI, etc)
     Config::loadPreferences();
 
@@ -62,18 +72,38 @@ void setup() {
     tankMutex = xSemaphoreCreateMutex();
     if (tankMutex == NULL) {
         Serial.println("[ERRO] Falha ao criar mutex — sistema travado");
-        while (true) { delay(1000); }
+        statusLed.setStatus(LED_STATUS_ERROR);
+        while (true) { 
+            statusLed.update();
+            delay(10); 
+        }
     }
 
     // 3. Wi-Fi e Web Server — pode escrever em Flash/NVS; deve ocorrer antes das interrupts.
     if (!webServer.begin()) {
         Serial.println("[ERRO] Falha ao iniciar Web Server");
+        statusLed.setStatus(LED_STATUS_ERROR);
+        while (true) { 
+            statusLed.update();
+            delay(10); 
+        }
     }
 
     // 4. TankController — habilita interrupts de hardware (Servos + Serial iBUS).
     if (!tankController.initialize()) {
         Serial.println("[ERRO] Falha crítica no TankController — sistema travado");
-        while (true) { delay(1000); }
+        statusLed.setStatus(LED_STATUS_ERROR);
+        while (true) { 
+            statusLed.update();
+            delay(10); 
+        }
+    }
+
+    // Se no WebServerManager caiu em fallback pro AP Mode, mantém como Warning
+    if (Config::WIFI_MODE == 0) {
+        statusLed.setStatus(LED_STATUS_WARNING);
+    } else {
+        statusLed.setStatus(LED_STATUS_OPERATIONAL);
     }
 
     // 5. Tasks do sistema.
@@ -84,6 +114,6 @@ void setup() {
 }
 
 void loop() {
-    // Controle roda na TankControlTask; loop liberado para o scheduler do Core 1.
+    // Controle roda na TankControlTask; loop liberado para o scheduler da Core 1.
     vTaskDelay(pdMS_TO_TICKS(1000));
 }

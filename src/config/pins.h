@@ -1,6 +1,12 @@
 #ifndef PINS_H
 #define PINS_H
 
+#include <Arduino.h>
+
+#ifndef LED_BUILTIN
+#define LED_BUILTIN 2
+#endif
+
 namespace Pins {
   // ESCs
   constexpr uint8_t ESC_LEFT = 19;
