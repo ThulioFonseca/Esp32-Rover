@@ -56,27 +56,10 @@ const char index_html[] PROGMEM = R"rawliteral(
             </div>
 
             <div id="radio" class="tab-content">
-                <div class="dashboard-grid">
+                <div class="dashboard-grid" style="grid-template-columns: 1fr;">
                     <div class="card">
-                        <h3>Main Channels</h3>
-                        <div class="channel-group">
-                            <label>Throttle</label>
-                            <div class="channel-row">
-                                <div class="progress-bar"><div id="ch-throttle" class="fill"></div></div>
-                                <span class="val" id="val-throttle">1500</span>
-                            </div>
-                        </div>
-                        <div class="channel-group">
-                            <label>Steering</label>
-                            <div class="channel-row">
-                                <div class="progress-bar"><div id="ch-steering" class="fill"></div></div>
-                                <span class="val" id="val-steering">1500</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card">
-                        <h3>Auxiliary</h3>
-                        <div id="aux-channels">Loading...</div>
+                        <h3>Receiver Channels</h3>
+                        <div id="all-channels">Loading...</div>
                     </div>
                 </div>
             </div>
@@ -427,6 +410,14 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
     border-color: var(--watermelon) !important;
     border-left-width: 6px !important;
 }
+.armed-true .switch input:checked + .slider {
+    background-color: rgba(228, 37, 72, 0.2);
+    border-color: var(--watermelon);
+}
+.armed-true .switch input:checked + .slider:before {
+    background-color: var(--watermelon);
+    box-shadow: 0 0 8px var(--watermelon);
+}
 .armed-false { 
     background-color: var(--accent-bg-glow) !important; 
     border-color: var(--card-border) !important; 
@@ -515,32 +506,34 @@ function updateRadio() {
         return r.json();
     })
     .then(d => {
-        // Se a resposta vier sem os atributos principais, aborta o update
-        if (d.throttle === undefined || d.steering === undefined || !d.aux) {
+        if (!d.raw_channels || !Array.isArray(d.raw_channels)) {
+            // Backward compatibility if backend isn't updated yet
+            if (d.throttle !== undefined && d.steering !== undefined && d.aux) {
+                // Usually CH1 is Steering, CH2 ?, CH3 Throttle in generic cars. We will just use standard order 1 to 10.
+                // It's better to fetch raw channels from backend. 
+                // As the backend will be modified to send `raw_channels`, we expect it here.
+            }
             return;
         }
-        
-        updateChannel('throttle', d.throttle);
-        updateChannel('steering', d.steering);
-        
-        const auxContainer = document.getElementById('aux-channels');
-        if(auxContainer.innerHTML === 'Loading...' || auxContainer.innerHTML === '') {
-            auxContainer.innerHTML = '';
-            d.aux.forEach((val, i) => {
-                auxContainer.innerHTML += `
-                    <div class="channel-group">
-                        <label>AUX ${i+1}</label>
+
+        const container = document.getElementById('all-channels');
+        if(container.innerHTML === 'Loading...' || container.innerHTML === '') {
+            container.innerHTML = '';
+            // Divide channels in 2 columns
+            container.innerHTML = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">' +
+                d.raw_channels.map((val, i) => `
+                    <div class="channel-group" style="margin-bottom: 0;">
+                        <label>CH ${i+1}</label>
                         <div class="channel-row">
-                            <div class="progress-bar"><div id="ch-aux${i}" class="fill" style="width: 50%"></div></div>
-                            <span class="val" id="val-aux${i}">${val}</span>
+                            <div class="progress-bar"><div id="ch-${i}" class="fill" style="width: 50%"></div></div>
+                            <span class="val" id="val-${i}">${val}</span>
                         </div>
-                    </div>`;
-            });
+                    </div>
+                `).join('') + '</div>';
         }
         
-        d.aux.forEach((val, i) => {
-            const el = document.getElementById(`ch-aux${i}`);
-            if(el) updateChannel(`aux${i}`, val);
+        d.raw_channels.forEach((val, i) => {
+            updateChannel(`${i}`, val);
         });
     })
     .catch(err => console.error('Error fetching channels:', err));

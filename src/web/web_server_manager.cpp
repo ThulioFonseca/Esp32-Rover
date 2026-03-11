@@ -122,11 +122,13 @@ void WebServerManager::setupRoutes() {
             doc["ssid"]    = WiFi.SSID();
             doc["mode"]    = "Station";
             doc["gateway"] = WiFi.gatewayIP().toString();
+            doc["channel"] = WiFi.channel();
         } else {
             doc["ip"]      = WiFi.softAPIP().toString();
             doc["ssid"]    = WiFi.softAPSSID();
             doc["mode"]    = "AP";
             doc["clients"] = WiFi.softAPgetStationNum();
+            doc["channel"] = WiFi.channel();
         }
         
         String response;
@@ -152,14 +154,24 @@ void WebServerManager::setupRoutes() {
         }
 
         JsonDocument doc;
-        doc["throttle"] = snapshot.throttle;
-        doc["steering"] = snapshot.steering;
-        doc["valid"]    = snapshot.isValid;
-
-        JsonArray aux = doc["aux"].to<JsonArray>();
-        for(int i = 0; i < 8; i++) {
-            aux.add(snapshot.aux[i]);
-        }
+        doc["valid"] = snapshot.isValid;
+        
+        // Envia todos os canais brutos em sequência CH1 a CH10 (assumindo Steering no CH1 e Throttle no CH3 para carros)
+        JsonArray raw = doc["raw_channels"].to<JsonArray>();
+        // O ChannelManager guarda steering e throttle em variáveis e o resto em aux, 
+        // mas idealmente ele deveria guardar tudo num array de 10 posições,
+        // como a estrutura Types::ChannelData atual tem steering, throttle e aux[8], 
+        // Vamos reconstruir os 10 canais lógicos:
+        raw.add(snapshot.steering); // CH1
+        raw.add(snapshot.aux[0]);   // CH2
+        raw.add(snapshot.throttle); // CH3
+        raw.add(snapshot.aux[1]);   // CH4
+        raw.add(snapshot.aux[2]);   // CH5
+        raw.add(snapshot.aux[3]);   // CH6
+        raw.add(snapshot.aux[4]);   // CH7
+        raw.add(snapshot.aux[5]);   // CH8
+        raw.add(snapshot.aux[6]);   // CH9
+        raw.add(snapshot.aux[7]);   // CH10
 
         String response;
         serializeJson(doc, response);

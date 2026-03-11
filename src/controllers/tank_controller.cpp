@@ -33,6 +33,9 @@ bool TankController::initialize() {
         Serial.println("[INFO] Inicializando ImuSensor...");
         if (!imuSensor.initialize()) {
             Serial.println("[AVISO] ImuSensor não inicializado — continuando sem IMU");
+        } else {
+            Serial.println("[INFO] ImuSensor inicializado — inciando calibração automática...");
+            imuSensor.startCalibration();
         }
     }
 
