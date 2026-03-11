@@ -58,21 +58,21 @@ void setup() {
         Serial.println("[ERRO] Falha ao montar SPIFFS");
     }
 
-    // 2. Wi-Fi e Web Server — pode escrever em Flash/NVS; deve ocorrer antes das interrupts.
+    // 2. Criar Mutex antes de iniciar o web server (evita crash se requests chegarem cedo).
+    tankMutex = xSemaphoreCreateMutex();
+    if (tankMutex == NULL) {
+        Serial.println("[ERRO] Falha ao criar mutex — sistema travado");
+        while (true) { delay(1000); }
+    }
+
+    // 3. Wi-Fi e Web Server — pode escrever em Flash/NVS; deve ocorrer antes das interrupts.
     if (!webServer.begin()) {
         Serial.println("[ERRO] Falha ao iniciar Web Server");
     }
 
-    // 3. TankController — habilita interrupts de hardware (Servos + Serial iBUS).
+    // 4. TankController — habilita interrupts de hardware (Servos + Serial iBUS).
     if (!tankController.initialize()) {
         Serial.println("[ERRO] Falha crítica no TankController — sistema travado");
-        while (true) { delay(1000); }
-    }
-
-    // 4. Mutex criado após inicialização e antes da criação das tasks.
-    tankMutex = xSemaphoreCreateMutex();
-    if (tankMutex == NULL) {
-        Serial.println("[ERRO] Falha ao criar mutex — sistema travado");
         while (true) { delay(1000); }
     }
 

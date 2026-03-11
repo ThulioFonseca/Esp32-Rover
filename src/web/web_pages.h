@@ -411,43 +411,52 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
 )rawliteral";
 
 const char script_js[] PROGMEM = R"rawliteral(
-function openTab(tabName) {
-    const contents = document.querySelectorAll('.tab-content');
-    contents.forEach(content => content.classList.remove('active'));
-    
-    const btns = document.querySelectorAll('.tab-btn');
-    btns.forEach(btn => btn.classList.remove('active'));
-    
-    document.getElementById(tabName).classList.add('active');
-    event.currentTarget.classList.add('active');
-}
-
 function updateSysInfo() {
     fetch('/api/sysinfo')
         .then(response => response.json())
         .then(data => {
             const list = document.getElementById('sysinfo-list');
             list.innerHTML = `
-                <li><span class="label">Chip Model</span> <span class="value">${data.chip_model}</span></li>
-                <li><span class="label">Revision</span> <span class="value">${data.chip_revision}</span></li>
-                <li><span class="label">Free Heap</span> <span class="value">${formatBytes(data.free_heap)}</span></li>
+                <li><span class="label">Chip Model</span> <span class="value">${data.chip_model} (Rev ${data.chip_revision})</span></li>
+                <li><span class="label">CPU Freq</span> <span class="value">${data.cpu_freq} MHz</span></li>
+                <li><span class="label">RAM (Total)</span> <span class="value">${formatBytes(data.heap_total)}</span></li>
+                <li><span class="label">Flash (Total)</span> <span class="value">${formatBytes(data.flash_size)}</span></li>
+                <li><span class="label">Sketch Size</span> <span class="value">${formatBytes(data.sketch_size)}</span></li>
                 <li><span class="label">Uptime</span> <span class="value">${formatTime(data.uptime)}</span></li>
             `;
             
             const netList = document.getElementById('netinfo-list');
-            netList.innerHTML = `
-                <li><span class="label">IP Address</span> <span class="value">${data.ip}</span></li>
-                <li><span class="label">WiFi Mode</span> <span class="value">AP</span></li>
+            let netHTML = `
+                <li><span class="label">Mode</span> <span class="value">${data.mode}</span></li>
                 <li><span class="label">SSID</span> <span class="value">${data.ssid}</span></li>
+                <li><span class="label">IP Address</span> <span class="value">${data.ip}</span></li>
+                <li><span class="label">MAC Address</span> <span class="value">${data.mac}</span></li>
+                <li><span class="label">Channel</span> <span class="value">${data.channel}</span></li>
             `;
+            
+            if (data.mode === "Station") {
+                netHTML += `<li><span class="label">Gateway</span> <span class="value">${data.gateway}</span></li>`;
+            } else {
+                netHTML += `<li><span class="label">Clients</span> <span class="value">${data.clients}</span></li>`;
+            }
+            
+            netList.innerHTML = netHTML;
         })
         .catch(err => console.error('Error fetching sysinfo:', err));
 }
 
 function updateRadio() {
     fetch('/api/channels')
-    .then(r => r.json())
+    .then(r => {
+        if (!r.ok) throw new Error("Network response was not ok");
+        return r.json();
+    })
     .then(d => {
+        // Se a resposta vier sem os atributos principais, aborta o update
+        if (d.throttle === undefined || d.steering === undefined || !d.aux) {
+            return;
+        }
+        
         updateChannel('throttle', d.throttle);
         updateChannel('steering', d.steering);
         
@@ -623,15 +632,25 @@ function updateArmedStyle(isArmed) {
     }
 }
 
+let sensorFailCount = 0;
+
 function updateSensors() {
     fetch('/api/sensors')
-    .then(r => r.json())
+    .then(r => {
+        if (!r.ok) throw new Error("Network response was not ok");
+        return r.json();
+    })
     .then(d => {
         const offline = document.getElementById('imu-offline');
         if (!d.valid) {
-            if (offline) offline.style.display = 'block';
+            sensorFailCount++;
+            if (sensorFailCount > 3 && offline) {
+                offline.style.display = 'block';
+            }
             return;
         }
+        
+        sensorFailCount = 0;
         if (offline) offline.style.display = 'none';
 
         const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(3);
@@ -653,7 +672,14 @@ function updateSensors() {
         document.getElementById('mag-y').innerText = fmt(d.mag.y);
         document.getElementById('mag-z').innerText = fmt(d.mag.z);
     })
-    .catch(err => console.error('Error fetching sensors:', err));
+    .catch(err => {
+        console.error('Error fetching sensors:', err);
+        sensorFailCount++;
+        const offline = document.getElementById('imu-offline');
+        if (sensorFailCount > 3 && offline) {
+            offline.style.display = 'block';
+        }
+    });
 }
 
 function formatBytes(bytes) {
@@ -671,23 +697,51 @@ function formatTime(ms) {
     return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
 }
 
-// Update loop — executa apenas para a aba visível, evitando requisições desnecessárias.
-setInterval(() => {
-    if(document.getElementById('home').classList.contains('active')) {
-        updateSysInfo();
+// Variação de tempo dependendo da aba para reduzir a carga de polling no ESP32
+let pollingInterval;
+
+function startPolling() {
+    if(pollingInterval) clearInterval(pollingInterval);
+    
+    let rate = 1000; // Padrão: 1 segundo
+    
+    // Se estiver no rádio ou sensores, pode precisar de atualização mais rápida
+    if(document.getElementById('radio').classList.contains('active') || 
+       document.getElementById('sensors').classList.contains('active')) {
+        rate = 500;
     }
-    if(document.getElementById('radio').classList.contains('active')) {
-        updateRadio();
-    }
-    if(document.getElementById('sensors').classList.contains('active')) {
-        updateSensors();
-    }
-}, 500);
+    
+    pollingInterval = setInterval(() => {
+        if(document.getElementById('home').classList.contains('active')) {
+            updateSysInfo();
+        }
+        if(document.getElementById('radio').classList.contains('active')) {
+            updateRadio();
+        }
+        if(document.getElementById('sensors').classList.contains('active')) {
+            updateSensors();
+        }
+    }, rate);
+}
+
+function openTab(tabName) {
+    const contents = document.querySelectorAll('.tab-content');
+    contents.forEach(content => content.classList.remove('active'));
+    
+    const btns = document.querySelectorAll('.tab-btn');
+    btns.forEach(btn => btn.classList.remove('active'));
+    
+    document.getElementById(tabName).classList.add('active');
+    event.currentTarget.classList.add('active');
+    
+    startPolling();
+}
 
 // Initial load
 document.addEventListener('DOMContentLoaded', () => {
     updateSysInfo();
     loadSettings();
+    startPolling();
 });
 )rawliteral";
 

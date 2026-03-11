@@ -11,6 +11,15 @@ extern TankController tankController;
 // entre Core 0 (web callbacks) e Core 1 (TankControlTask).
 extern SemaphoreHandle_t tankMutex;
 
+// Cache de dados estáticos do hardware — preenchido em begin() para evitar acessos SPI no hot path
+static String hw_chip_model;
+static int    hw_chip_revision;
+static int    hw_cpu_freq;
+static uint32_t hw_heap_total;
+static uint32_t hw_flash_size;
+static uint32_t hw_sketch_size;
+static String hw_mac;
+
 WebServerManager::WebServerManager(const char* ssid, const char* password)
     : ap_ssid(ssid), ap_password(password), server(80) {}
 
@@ -56,6 +65,15 @@ bool WebServerManager::begin() {
         Serial.println(WiFi.softAPIP());
     }
 
+    // Pré-computa os dados estáticos sem risco de suspensão de scheduler no hot path
+    hw_chip_model    = ESP.getChipModel();
+    hw_chip_revision = ESP.getChipRevision();
+    hw_cpu_freq      = ESP.getCpuFreqMHz();
+    hw_heap_total    = ESP.getHeapSize();
+    hw_flash_size    = ESP.getFlashChipSize();
+    hw_sketch_size   = ESP.getSketchSize();
+    hw_mac           = WiFi.macAddress();
+
     setupRoutes();
 
     server.begin();
@@ -87,22 +105,28 @@ void WebServerManager::setupRoutes() {
         request->send(200, "text/plain", "OK");
     });
 
-    // System Info API
+    // System Info API — usa apenas valores em cache (sem acessos SPI no hot path)
     server.on("/api/sysinfo", HTTP_GET, [](AsyncWebServerRequest *request){
         JsonDocument doc;
-        doc["chip_model"] = ESP.getChipModel();
-        doc["chip_revision"] = ESP.getChipRevision();
-        doc["free_heap"] = ESP.getFreeHeap();
-        doc["uptime"] = millis();
+        doc["chip_model"]    = hw_chip_model;
+        doc["chip_revision"] = hw_chip_revision;
+        doc["cpu_freq"]      = hw_cpu_freq;
+        doc["heap_total"]    = hw_heap_total;
+        doc["flash_size"]    = hw_flash_size;
+        doc["sketch_size"]   = hw_sketch_size;
+        doc["uptime"]        = millis();
+        doc["mac"]           = hw_mac;
         
         if (Config::WIFI_MODE == 1 && WiFi.status() == WL_CONNECTED) {
-            doc["ip"] = WiFi.localIP().toString();
-            doc["ssid"] = WiFi.SSID();
-            doc["mode"] = "Station";
+            doc["ip"]      = WiFi.localIP().toString();
+            doc["ssid"]    = WiFi.SSID();
+            doc["mode"]    = "Station";
+            doc["gateway"] = WiFi.gatewayIP().toString();
         } else {
-            doc["ip"] = WiFi.softAPIP().toString();
-            doc["ssid"] = WiFi.softAPSSID();
-            doc["mode"] = "AP";
+            doc["ip"]      = WiFi.softAPIP().toString();
+            doc["ssid"]    = WiFi.softAPSSID();
+            doc["mode"]    = "AP";
+            doc["clients"] = WiFi.softAPgetStationNum();
         }
         
         String response;
@@ -119,7 +143,7 @@ void WebServerManager::setupRoutes() {
             request->send(503, "application/json", "{\"error\":\"system not ready\"}");
             return;
         }
-        if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (xSemaphoreTake(tankMutex, 0) == pdTRUE) {
             snapshot = tankController.getChannelData();
             xSemaphoreGive(tankMutex);
         } else {
@@ -149,7 +173,7 @@ void WebServerManager::setupRoutes() {
             request->send(503, "application/json", "{\"error\":\"system not ready\"}");
             return;
         }
-        if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (xSemaphoreTake(tankMutex, 0) == pdTRUE) {
             snapshot = tankController.getImuData();
             xSemaphoreGive(tankMutex);
         } else {
@@ -193,7 +217,7 @@ void WebServerManager::setupRoutes() {
             request->send(503, "application/json", "{\"error\":\"system not ready\"}");
             return;
         }
-        if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (xSemaphoreTake(tankMutex, 0) == pdTRUE) {
             armed = tankController.isSystemArmed();
             xSemaphoreGive(tankMutex);
         } else {
@@ -220,7 +244,7 @@ void WebServerManager::setupRoutes() {
             return;
         }
         
-        if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (xSemaphoreTake(tankMutex, 0) == pdTRUE) {
             tankController.calibrateImu();
             xSemaphoreGive(tankMutex);
             request->send(200, "application/json", "{\"status\":\"started\"}");
@@ -241,7 +265,7 @@ void WebServerManager::setupRoutes() {
         
         bool requiresReboot = false;
 
-        if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+        if (xSemaphoreTake(tankMutex, 0) == pdTRUE) {
             if (!doc["debug"].isNull()) {
                 Config::saveDebugPreference(doc["debug"]);
                 tankController.setDebugMode(Config::DEBUG_ENABLED);
