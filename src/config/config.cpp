@@ -6,6 +6,7 @@ namespace Config {
   bool DARK_THEME = true;
   bool DEBUG_ENABLED = false;
   bool IMU_ENABLED = true; // Controla se o sensor IMU deve ser inicializado
+  bool GPS_ENABLED = true; // Controla se o GPS deve ser inicializado
 
   uint8_t WIFI_MODE = 0; // 0 = AP, 1 = STA
   String STA_SSID = "";

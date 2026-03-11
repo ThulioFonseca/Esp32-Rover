@@ -68,6 +68,22 @@ namespace Types {
     ImuData();
   };
 
+  struct GpsData {
+    float latitude;
+    float longitude;
+    float altitude; // metros
+    float speed;    // km/h
+    float course;   // graus
+    uint32_t satellites;
+    float hdop;
+    String dateTime; // formato ISO 8601 com timezone (ex: 2026-12-01T15:30:00-03:00)
+
+    bool isValid;
+    unsigned long lastUpdate;
+
+    GpsData();
+  };
+
   enum SystemState {
     INITIALIZING,
     ARMING,

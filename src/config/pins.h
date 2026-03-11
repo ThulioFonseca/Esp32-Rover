@@ -32,6 +32,10 @@ namespace Pins {
   constexpr uint8_t SPI_MISO = 12; // Movido de 19 (conflito com ESC_LEFT)
   constexpr uint8_t SPI_SCK  = 14; // Movido de 18 (conflito com ESC_RIGHT)
   constexpr uint8_t SPI_CS   = 5;
+
+  // Serial 1 (GPS Neo-7M/M8N)
+  constexpr uint8_t PIN_GPS_RX = 4;
+  constexpr uint8_t PIN_GPS_TX = 5; // Nota: Compartilhado com SPI_CS, use com cautela se usar SPI futuramente
 }
 
 #endif

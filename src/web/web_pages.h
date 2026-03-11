@@ -65,9 +65,34 @@ const char index_html[] PROGMEM = R"rawliteral(
             </div>
 
             <div id="sensors" class="tab-content">
-                <div id="imu-offline" class="card" style="display:none; border-left: 4px solid var(--watermelon);">
+                <div id="imu-offline" class="card" style="display:none; border-left: 4px solid var(--watermelon); margin-bottom: 20px;">
                     <p style="margin:0; color:var(--watermelon); font-weight:bold; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">⚠ IMU offline or data invalid</p>
                 </div>
+                
+                <!-- GPS Card span 2 columns if space allows -->
+                <div class="dashboard-grid" style="margin-bottom: 20px;">
+                    <div class="card" style="grid-column: 1 / -1;">
+                        <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--header-border); padding-bottom: 12px; margin-bottom: 16px;">
+                            <h3 style="border: none; padding: 0; margin: 0;">GPS Location</h3>
+                            <span id="gps-status" style="font-size: 0.75rem; font-weight: bold; padding: 4px 8px; border-radius: 4px; background: rgba(228, 37, 72, 0.1); color: var(--watermelon); text-transform: uppercase;">NO FIX</span>
+                        </div>
+                        <div class="dashboard-grid">
+                            <div>
+                                <div class="sensor-row"><span class="label">Latitude</span><div class="sensor-data"><span class="value" id="gps-lat">--</span><span class="unit">°</span></div></div>
+                                <div class="sensor-row"><span class="label">Longitude</span><div class="sensor-data"><span class="value" id="gps-lng">--</span><span class="unit">°</span></div></div>
+                                <div class="sensor-row"><span class="label">Altitude</span><div class="sensor-data"><span class="value" id="gps-alt">--</span><span class="unit">m</span></div></div>
+                                <div class="sensor-row"><span class="label">Satellites</span><div class="sensor-data"><span class="value" id="gps-sats">0</span><span class="unit"></span></div></div>
+                            </div>
+                            <div>
+                                <div class="sensor-row"><span class="label">Speed</span><div class="sensor-data"><span class="value" id="gps-speed">--</span><span class="unit">km/h</span></div></div>
+                                <div class="sensor-row"><span class="label">Course</span><div class="sensor-data"><span class="value" id="gps-course">--</span><span class="unit">°</span></div></div>
+                                <div class="sensor-row"><span class="label">HDOP</span><div class="sensor-data"><span class="value" id="gps-hdop">--</span><span class="unit"></span></div></div>
+                                <div class="sensor-row"><span class="label">Time (UTC-3)</span><div class="sensor-data"><span class="value" style="font-size:0.8rem" id="gps-time">--</span><span class="unit"></span></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="dashboard-grid">
                     <div class="card">
                         <h3>Orientation</h3>
@@ -728,30 +753,75 @@ function updateSensors() {
             if (sensorFailCount > 3 && offline) {
                 offline.style.display = 'block';
             }
-            return;
+        } else {
+            sensorFailCount = 0;
+            if (offline) offline.style.display = 'none';
+
+            const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(3);
+
+            document.getElementById('imu-roll').innerText  = fmt(d.angles.roll);
+            document.getElementById('imu-pitch').innerText = fmt(d.angles.pitch);
+            document.getElementById('imu-yaw').innerText   = fmt(d.angles.yaw);
+            document.getElementById('imu-temp').innerText  = d.temperature.toFixed(1);
+
+            document.getElementById('accel-x').innerText = fmt(d.accel.x);
+            document.getElementById('accel-y').innerText = fmt(d.accel.y);
+            document.getElementById('accel-z').innerText = fmt(d.accel.z);
+
+            document.getElementById('gyro-x').innerText = fmt(d.gyro.x);
+            document.getElementById('gyro-y').innerText = fmt(d.gyro.y);
+            document.getElementById('gyro-z').innerText = fmt(d.gyro.z);
+
+            document.getElementById('mag-x').innerText = fmt(d.mag.x);
+            document.getElementById('mag-y').innerText = fmt(d.mag.y);
+            document.getElementById('mag-z').innerText = fmt(d.mag.z);
         }
-        
-        sensorFailCount = 0;
-        if (offline) offline.style.display = 'none';
 
-        const fmt = v => (v >= 0 ? '+' : '') + v.toFixed(3);
-
-        document.getElementById('imu-roll').innerText  = fmt(d.angles.roll);
-        document.getElementById('imu-pitch').innerText = fmt(d.angles.pitch);
-        document.getElementById('imu-yaw').innerText   = fmt(d.angles.yaw);
-        document.getElementById('imu-temp').innerText  = d.temperature.toFixed(1);
-
-        document.getElementById('accel-x').innerText = fmt(d.accel.x);
-        document.getElementById('accel-y').innerText = fmt(d.accel.y);
-        document.getElementById('accel-z').innerText = fmt(d.accel.z);
-
-        document.getElementById('gyro-x').innerText = fmt(d.gyro.x);
-        document.getElementById('gyro-y').innerText = fmt(d.gyro.y);
-        document.getElementById('gyro-z').innerText = fmt(d.gyro.z);
-
-        document.getElementById('mag-x').innerText = fmt(d.mag.x);
-        document.getElementById('mag-y').innerText = fmt(d.mag.y);
-        document.getElementById('mag-z').innerText = fmt(d.mag.z);
+        // GPS Data Processing
+        if (d.gps) {
+            const gpsStatus = document.getElementById('gps-status');
+            if (d.gps.valid) {
+                gpsStatus.innerText = "3D FIX";
+                gpsStatus.style.background = "var(--accent-bg-glow)";
+                gpsStatus.style.color = "var(--accent-color)";
+                
+                document.getElementById('gps-lat').innerText = d.gps.lat.toFixed(6);
+                document.getElementById('gps-lng').innerText = d.gps.lng.toFixed(6);
+                document.getElementById('gps-alt').innerText = d.gps.alt.toFixed(1);
+                document.getElementById('gps-sats').innerText = d.gps.satellites;
+                document.getElementById('gps-speed').innerText = d.gps.speed.toFixed(1);
+                document.getElementById('gps-course').innerText = d.gps.course.toFixed(1);
+                document.getElementById('gps-hdop').innerText = d.gps.hdop.toFixed(2);
+                
+                // Format the ISO time slightly for better reading (split date and time)
+                if(d.gps.time) {
+                    const timeStr = d.gps.time.split('T');
+                    if(timeStr.length === 2) {
+                        const justTime = timeStr[1].split('-')[0]; // Remove timezone part for display if needed
+                        document.getElementById('gps-time').innerText = justTime;
+                    } else {
+                        document.getElementById('gps-time').innerText = d.gps.time;
+                    }
+                }
+            } else {
+                gpsStatus.innerText = "NO FIX";
+                gpsStatus.style.background = "rgba(228, 37, 72, 0.1)";
+                gpsStatus.style.color = "var(--watermelon)";
+                
+                document.getElementById('gps-lat').innerText = "--";
+                document.getElementById('gps-lng').innerText = "--";
+                document.getElementById('gps-alt').innerText = "--";
+                document.getElementById('gps-speed').innerText = "--";
+                document.getElementById('gps-course').innerText = "--";
+                document.getElementById('gps-hdop').innerText = "--";
+                document.getElementById('gps-time').innerText = "--";
+                
+                // We might still get satellite count even without fix
+                if (d.gps.satellites !== undefined) {
+                    document.getElementById('gps-sats').innerText = d.gps.satellites;
+                }
+            }
+        }
     })
     .catch(err => {
         console.error('Error fetching sensors:', err);

@@ -180,13 +180,16 @@ void WebServerManager::setupRoutes() {
 
     // IMU / Sensors API
     server.on("/api/sensors", HTTP_GET, [](AsyncWebServerRequest *request){
-        Types::ImuData snapshot;
+        Types::ImuData imuSnapshot;
+        Types::GpsData gpsSnapshot;
+        
         if (tankMutex == nullptr) {
             request->send(503, "application/json", "{\"error\":\"system not ready\"}");
             return;
         }
         if (xSemaphoreTake(tankMutex, 0) == pdTRUE) {
-            snapshot = tankController.getImuData();
+            imuSnapshot = tankController.getImuData();
+            gpsSnapshot = tankController.getGpsData();
             xSemaphoreGive(tankMutex);
         } else {
             request->send(503, "application/json", "{\"error\":\"system busy\"}");
@@ -194,28 +197,44 @@ void WebServerManager::setupRoutes() {
         }
 
         JsonDocument doc;
-        doc["valid"]       = snapshot.isValid;
-        doc["temperature"] = snapshot.temperature;
+        
+        // IMU Data
+        doc["valid"]       = imuSnapshot.isValid; // kept for backwards compatibility (frontend)
+        doc["temperature"] = imuSnapshot.temperature;
 
         JsonObject accel = doc["accel"].to<JsonObject>();
-        accel["x"] = snapshot.accelX;
-        accel["y"] = snapshot.accelY;
-        accel["z"] = snapshot.accelZ;
+        accel["x"] = imuSnapshot.accelX;
+        accel["y"] = imuSnapshot.accelY;
+        accel["z"] = imuSnapshot.accelZ;
 
         JsonObject gyro = doc["gyro"].to<JsonObject>();
-        gyro["x"] = snapshot.gyroX;
-        gyro["y"] = snapshot.gyroY;
-        gyro["z"] = snapshot.gyroZ;
+        gyro["x"] = imuSnapshot.gyroX;
+        gyro["y"] = imuSnapshot.gyroY;
+        gyro["z"] = imuSnapshot.gyroZ;
 
         JsonObject mag = doc["mag"].to<JsonObject>();
-        mag["x"] = snapshot.magX;
-        mag["y"] = snapshot.magY;
-        mag["z"] = snapshot.magZ;
+        mag["x"] = imuSnapshot.magX;
+        mag["y"] = imuSnapshot.magY;
+        mag["z"] = imuSnapshot.magZ;
 
         JsonObject angles = doc["angles"].to<JsonObject>();
-        angles["roll"]  = snapshot.roll;
-        angles["pitch"] = snapshot.pitch;
-        angles["yaw"]   = snapshot.yaw;
+        angles["roll"]  = imuSnapshot.roll;
+        angles["pitch"] = imuSnapshot.pitch;
+        angles["yaw"]   = imuSnapshot.yaw;
+
+        // GPS Data
+        JsonObject gps = doc["gps"].to<JsonObject>();
+        gps["valid"] = gpsSnapshot.isValid;
+        if(gpsSnapshot.isValid) {
+            gps["lat"] = gpsSnapshot.latitude;
+            gps["lng"] = gpsSnapshot.longitude;
+            gps["alt"] = gpsSnapshot.altitude;
+            gps["speed"] = gpsSnapshot.speed;
+            gps["course"] = gpsSnapshot.course;
+            gps["satellites"] = gpsSnapshot.satellites;
+            gps["hdop"] = gpsSnapshot.hdop;
+            gps["time"] = gpsSnapshot.dateTime;
+        }
 
         String response;
         serializeJson(doc, response);

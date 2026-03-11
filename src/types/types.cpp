@@ -30,4 +30,9 @@ namespace Types {
       roll(0.0f), pitch(0.0f), yaw(0.0f),
       temperature(0.0f),
       isValid(false), lastUpdate(0) {}
+
+  GpsData::GpsData()
+    : latitude(0.0f), longitude(0.0f), altitude(0.0f),
+      speed(0.0f), course(0.0f), satellites(0), hdop(0.0f),
+      dateTime(""), isValid(false), lastUpdate(0) {}
 }

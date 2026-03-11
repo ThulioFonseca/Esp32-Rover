@@ -50,6 +50,10 @@ namespace Config {
   constexpr uint8_t IMU_I2C_ADDR     = 0x68; // AD0 = LOW (GND)
   constexpr uint32_t IMU_I2C_FREQ_HZ = 100000; // Standard Mode (100 kHz) — mais estável em protoboard
   extern bool IMU_ENABLED;
+
+  // GPS (Neo-7M / M8N)
+  constexpr unsigned long GPS_BAUD = 9600;
+  extern bool GPS_ENABLED;
 }
 
 #endif

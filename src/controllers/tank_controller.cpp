@@ -39,6 +39,13 @@ bool TankController::initialize() {
         }
     }
 
+    if (Config::GPS_ENABLED) {
+        Serial.println("[INFO] Inicializando GpsSensor...");
+        if (!gpsSensor.initialize()) {
+            Serial.println("[AVISO] GpsSensor não inicializado — continuando sem GPS");
+        }
+    }
+
     Serial.println("[INFO] Iniciando sequência de armamento...");
     currentState = Types::ARMING;
     motorController.performArmingSequence();
@@ -55,8 +62,9 @@ void TankController::update() {
     channelManager.update();
     updateState();
 
-    // IMU atualiza independente do estado do sistema (dados sempre disponíveis para monitoramento).
+    // Sensores atualizam independentes do estado do sistema
     imuSensor.update();
+    gpsSensor.update();
 
     switch (currentState) {
         case Types::ARMED:   updateSystem();               break;
@@ -87,6 +95,10 @@ const Types::MotorCommands& TankController::getMotorCommands() const {
 
 const Types::ImuData& TankController::getImuData() const {
     return imuSensor.getData();
+}
+
+const Types::GpsData& TankController::getGpsData() const {
+    return gpsSensor.getData();
 }
 
 Types::SystemState TankController::getSystemState() const {

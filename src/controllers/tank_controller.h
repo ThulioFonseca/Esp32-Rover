@@ -5,6 +5,7 @@
 #include "../communication/channel_manager.h"
 #include "../controllers/motor_controller.h"
 #include "../sensors/imu_sensor.h"
+#include "../sensors/gps_sensor.h"
 #include "../debug/debug_manager.h"
 
 class TankController {
@@ -12,6 +13,7 @@ private:
   ChannelManager channelManager;
   MotorController motorController;
   ImuSensor imuSensor;
+  GpsSensor gpsSensor;
   DebugManager debugManager;
 
   Types::SystemState currentState;
@@ -28,6 +30,7 @@ public:
   const Types::ChannelData&   getChannelData()    const;
   const Types::MotorCommands& getMotorCommands()  const;
   const Types::ImuData&       getImuData()        const;
+  const Types::GpsData&       getGpsData()        const;
   Types::SystemState          getSystemState()    const;
   bool                        isSystemArmed()     const;
 
