@@ -33,6 +33,10 @@ namespace Config {
   void loadPreferences();
   void saveNetworkPreferences(uint8_t mode, const String& ssid, const String& pass);
   void saveDebugPreference(bool enabled);
+  void saveThemePreference(bool dark_theme);
+
+  // Theme
+  extern bool DARK_THEME;
 
   // Debug
   extern bool DEBUG_ENABLED;

@@ -226,6 +226,7 @@ void WebServerManager::setupRoutes() {
         }
 
         JsonDocument doc;
+        doc["dark_theme"] = Config::DARK_THEME;
         doc["debug"] = Config::DEBUG_ENABLED;
         doc["armed"] = armed;
         doc["wifi_mode"] = Config::WIFI_MODE;
@@ -265,28 +266,39 @@ void WebServerManager::setupRoutes() {
         
         bool requiresReboot = false;
 
+        // --- Configurações que vão para o NVS não devem estar dentro do mutex do controle de motores ---
+        if (!doc["dark_theme"].isNull()) {
+            Config::saveThemePreference(doc["dark_theme"]);
+        }
+        
+        if (!doc["debug"].isNull()) {
+            Config::saveDebugPreference(doc["debug"]);
+        }
+        
+        // Atualiza rede se os campos forem enviados
+        if (!doc["wifi_mode"].isNull()) {
+            uint8_t mode = doc["wifi_mode"];
+            String ssid = doc["sta_ssid"] | Config::STA_SSID;
+            String pass = doc["sta_pass"] | Config::STA_PASS;
+            
+            // Salva na memória NVS
+            Config::saveNetworkPreferences(mode, ssid, pass);
+            requiresReboot = true;
+        }
+
+        // --- Variáveis dinâmicas que pertencem ao TankController (Requerem Mutex) ---
         if (xSemaphoreTake(tankMutex, 0) == pdTRUE) {
             if (!doc["debug"].isNull()) {
-                Config::saveDebugPreference(doc["debug"]);
                 tankController.setDebugMode(Config::DEBUG_ENABLED);
             }
             if (!doc["armed"].isNull()) {
                 tankController.setSystemArmed(doc["armed"]);
             }
             
-            // Atualiza rede se os campos forem enviados
-            if (!doc["wifi_mode"].isNull()) {
-                uint8_t mode = doc["wifi_mode"];
-                String ssid = doc["sta_ssid"] | Config::STA_SSID;
-                String pass = doc["sta_pass"] | Config::STA_PASS;
-                
-                // Salva na memória NVS
-                Config::saveNetworkPreferences(mode, ssid, pass);
-                requiresReboot = true;
-            }
-            
             xSemaphoreGive(tankMutex);
         } else {
+            // Se o NVS já foi salvo mas não conseguiu acessar o controller, ainda retorna erro ou sucesso com warning?
+            // Vamos retornar busy para garantir que o cliente saiba da falha de state.
             request->send(503, "application/json", "{\"error\":\"system busy\"}");
             return;
         }

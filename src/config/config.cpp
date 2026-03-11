@@ -3,6 +3,7 @@
 
 namespace Config {
   unsigned long IBUS_TIMEOUT_MS = 1000;
+  bool DARK_THEME = true;
   bool DEBUG_ENABLED = false;
   bool IMU_ENABLED = true; // Controla se o sensor IMU deve ser inicializado
 
@@ -18,6 +19,7 @@ namespace Config {
     STA_SSID = preferences.getString("sta_ssid", "");
     STA_PASS = preferences.getString("sta_pass", "");
     DEBUG_ENABLED = preferences.getBool("debug", false);
+    DARK_THEME = preferences.getBool("dark_theme", true);
     preferences.end();
   }
 
@@ -39,5 +41,13 @@ namespace Config {
     preferences.end();
     
     DEBUG_ENABLED = enabled;
+  }
+
+  void saveThemePreference(bool dark_theme) {
+    preferences.begin("rover", false);
+    preferences.putBool("dark_theme", dark_theme);
+    preferences.end();
+    
+    DARK_THEME = dark_theme;
   }
 }
