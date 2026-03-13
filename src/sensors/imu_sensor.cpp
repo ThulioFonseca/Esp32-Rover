@@ -18,18 +18,28 @@ static constexpr float TEMP_OFF   = 21.0f;    // Offset de temperatura (°C)
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-ImuSensor::ImuSensor() : initialized(false), lastUpdateMs(0), 
+ImuSensor::ImuSensor() : i2c(&Wire), initialized(false), lastUpdateMs(0), 
                          gyroBiasX(0), gyroBiasY(0), gyroBiasZ(0),
                          isCalibrating(false), calibrationSamples(0),
-                         calibSumX(0), calibSumY(0), calibSumZ(0) {}
+                         calibSumX(0), calibSumY(0), calibSumZ(0),
+                         errorCount(0), lastInitAttempt(0) {}
 
-bool ImuSensor::initialize() {
-    Wire.begin(Pins::SDA, Pins::SCL, Config::IMU_I2C_FREQ_HZ);
+bool ImuSensor::initialize(TwoWire* wireInstance) {
+    if (wireInstance != nullptr) {
+        i2c = wireInstance;
+    }
+
+    if (millis() - lastInitAttempt < INIT_RETRY_INTERVAL_MS) {
+        return false;
+    }
+    lastInitAttempt = millis();
 
     // Testa a comunicação enviando um byte e verificando ACK
-    Wire.beginTransmission(Config::IMU_I2C_ADDR);
-    if (Wire.endTransmission() != 0) {
+    i2c->beginTransmission(Config::IMU_I2C_ADDR);
+    if (i2c->endTransmission() != 0) {
         Serial.println("[ERRO] MPU-6500 não respondeu no barramento I2C");
+        initialized = false;
+        data.isValid = false;
         return false;
     }
 
@@ -53,6 +63,7 @@ bool ImuSensor::initialize() {
     startCalibration();
 
     lastUpdateMs = millis();
+    errorCount = 0;
     initialized  = true;
     Serial.println("[INFO] MPU-6500 inicializado (±4g / ±500°/s / 100 Hz)");
     return true;
@@ -71,7 +82,10 @@ void ImuSensor::startCalibration() {
 }
 
 void ImuSensor::update() {
-    if (!initialized) return;
+    if (!initialized) {
+        initialize(nullptr);
+        return;
+    }
 
     unsigned long now = millis();
     float dt = (now - lastUpdateMs) / 1000.0f;
@@ -92,21 +106,21 @@ bool ImuSensor::isDataValid() const               { return data.isValid; }
 // ── I2C helpers ───────────────────────────────────────────────────────────────
 
 bool ImuSensor::writeRegister(uint8_t reg, uint8_t value) {
-    Wire.beginTransmission(Config::IMU_I2C_ADDR);
-    Wire.write(reg);
-    Wire.write(value);
-    return Wire.endTransmission() == 0;
+    i2c->beginTransmission(Config::IMU_I2C_ADDR);
+    i2c->write(reg);
+    i2c->write(value);
+    return i2c->endTransmission() == 0;
 }
 
 bool ImuSensor::readRegisters(uint8_t reg, uint8_t count, uint8_t* buf) {
-    Wire.beginTransmission(Config::IMU_I2C_ADDR);
-    Wire.write(reg);
-    if (Wire.endTransmission(false) != 0) return false; // repeated start
+    i2c->beginTransmission(Config::IMU_I2C_ADDR);
+    i2c->write(reg);
+    if (i2c->endTransmission(false) != 0) return false; // repeated start
 
-    Wire.requestFrom((uint8_t)Config::IMU_I2C_ADDR, count);
+    i2c->requestFrom((uint8_t)Config::IMU_I2C_ADDR, count);
     for (uint8_t i = 0; i < count; i++) {
-        if (!Wire.available()) return false;
-        buf[i] = Wire.read();
+        if (!i2c->available()) return false;
+        buf[i] = i2c->read();
     }
     return true;
 }
@@ -115,7 +129,18 @@ bool ImuSensor::readRegisters(uint8_t reg, uint8_t count, uint8_t* buf) {
 
 void ImuSensor::readSensorData() {
     uint8_t buf[14];
-    if (!readRegisters(REG_DATA_START, 14, buf)) return;
+    if (!readRegisters(REG_DATA_START, 14, buf)) {
+        errorCount++;
+        if (errorCount > 5) {
+            Serial.println("[AVISO] MPU-6500 perdeu comunicação. Agendando reinicialização...");
+            initialized = false;
+            data.isValid = false;
+        }
+        return;
+    }
+
+    // Sucesso, reseta erros
+    errorCount = 0;
 
     // Monta int16 big-endian e converte para unidade física
     auto toInt16 = [](uint8_t hi, uint8_t lo) -> int16_t {

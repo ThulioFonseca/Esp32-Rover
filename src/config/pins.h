@@ -36,6 +36,10 @@ namespace Pins {
   // Serial 1 (GPS Neo-7M/M8N)
   constexpr uint8_t PIN_GPS_RX = 4;
   constexpr uint8_t PIN_GPS_TX = 5; // Nota: Compartilhado com SPI_CS, use com cautela se usar SPI futuramente
+
+  // I2C 1 (Magnetômetro Externo no GPS)
+  constexpr uint8_t COMPASS_SDA = 25;
+  constexpr uint8_t COMPASS_SCL = 26;
 }
 
 #endif

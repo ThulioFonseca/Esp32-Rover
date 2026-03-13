@@ -68,6 +68,16 @@ namespace Types {
     ImuData();
   };
 
+  struct CompassData {
+    float x, y, z;
+    float heading; // graus (0 a 360)
+    
+    bool isValid;
+    unsigned long lastUpdate;
+
+    CompassData();
+  };
+
   struct GpsData {
     float latitude;
     float longitude;

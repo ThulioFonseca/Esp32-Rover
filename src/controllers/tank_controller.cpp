@@ -1,7 +1,9 @@
 #include "tank_controller.h"
 #include "../config/config.h"
+#include "../config/pins.h"
 #include "../utils/utils.h"
 #include <Arduino.h>
+#include <Wire.h>
 
 TankController::TankController()
     : currentState(Types::INITIALIZING), systemArmed(false) {}
@@ -28,11 +30,21 @@ bool TankController::initialize() {
         return false;
     }
 
-    // IMU é opcional: falha na inicialização gera aviso mas não impede o boot.
+    // Inicialização dos barramentos I2C
+    Serial.println("[INFO] Inicializando I2C 0 (IMU) nos pinos SDA=" + String(Pins::SDA) + ", SCL=" + String(Pins::SCL));
+    Wire.begin(Pins::SDA, Pins::SCL, Config::IMU_I2C_FREQ_HZ);
+    
+    Serial.println("[INFO] Inicializando I2C 1 (Compass) nos pinos SDA=" + String(Pins::COMPASS_SDA) + ", SCL=" + String(Pins::COMPASS_SCL));
+    pinMode(Pins::COMPASS_SDA, INPUT_PULLUP);
+    pinMode(Pins::COMPASS_SCL, INPUT_PULLUP);
+    // Usa uma frequência de relógio extremamente lenta (10 kHz) para compensar a ausência de resistores de pull-up físicos fortes.
+    Wire1.begin(Pins::COMPASS_SDA, Pins::COMPASS_SCL, 10000);
+
+    // Sensores são opcionais e têm auto-recuperação, falha inicial não trava o boot.
     if (Config::IMU_ENABLED) {
         Serial.println("[INFO] Inicializando ImuSensor...");
-        if (!imuSensor.initialize()) {
-            Serial.println("[AVISO] ImuSensor não inicializado — continuando sem IMU");
+        if (!imuSensor.initialize(&Wire)) {
+            Serial.println("[AVISO] ImuSensor não encontrado no boot. Tentará reconectar em background.");
         } else {
             Serial.println("[INFO] ImuSensor inicializado — inciando calibração automática...");
             imuSensor.startCalibration();
@@ -42,7 +54,12 @@ bool TankController::initialize() {
     if (Config::GPS_ENABLED) {
         Serial.println("[INFO] Inicializando GpsSensor...");
         if (!gpsSensor.initialize()) {
-            Serial.println("[AVISO] GpsSensor não inicializado — continuando sem GPS");
+            Serial.println("[AVISO] GpsSensor não inicializado. Tentará reconectar em background.");
+        }
+        
+        Serial.println("[INFO] Inicializando CompassSensor...");
+        if (!compassSensor.initialize(&Wire1)) {
+            Serial.println("[AVISO] CompassSensor não encontrado no boot. Tentará reconectar em background.");
         }
     }
 
@@ -65,6 +82,7 @@ void TankController::update() {
     // Sensores atualizam independentes do estado do sistema
     imuSensor.update();
     gpsSensor.update();
+    compassSensor.update();
 
     switch (currentState) {
         case Types::ARMED:   updateSystem();               break;
@@ -99,6 +117,10 @@ const Types::ImuData& TankController::getImuData() const {
 
 const Types::GpsData& TankController::getGpsData() const {
     return gpsSensor.getData();
+}
+
+const Types::CompassData& TankController::getCompassData() const {
+    return compassSensor.getData();
 }
 
 Types::SystemState TankController::getSystemState() const {

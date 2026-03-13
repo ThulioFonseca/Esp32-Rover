@@ -90,6 +90,19 @@ const char index_html[] PROGMEM = R"rawliteral(
                                 <div class="sensor-row"><span class="label">Time (UTC-3)</span><div class="sensor-data"><span class="value" style="font-size:0.8rem" id="gps-time">--</span><span class="unit"></span></div></div>
                             </div>
                         </div>
+                        <div style="border-top: 1px solid var(--header-border); margin-top: 16px; padding-top: 16px;">
+                            <h3 style="border: none; padding: 0; margin-bottom: 12px; font-size: 0.8rem;">Compass (External Mag)</h3>
+                            <div class="dashboard-grid">
+                                <div>
+                                    <div class="sensor-row"><span class="label">Heading</span><div class="sensor-data"><span class="value" id="comp-heading">--</span><span class="unit">°</span></div></div>
+                                    <div class="sensor-row"><span class="label">Mag X</span><div class="sensor-data"><span class="value" id="comp-x">--</span><span class="unit"></span></div></div>
+                                </div>
+                                <div>
+                                    <div class="sensor-row"><span class="label">Mag Y</span><div class="sensor-data"><span class="value" id="comp-y">--</span><span class="unit"></span></div></div>
+                                    <div class="sensor-row"><span class="label">Mag Z</span><div class="sensor-data"><span class="value" id="comp-z">--</span><span class="unit"></span></div></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -775,6 +788,21 @@ function updateSensors() {
             document.getElementById('mag-x').innerText = fmt(d.mag.x);
             document.getElementById('mag-y').innerText = fmt(d.mag.y);
             document.getElementById('mag-z').innerText = fmt(d.mag.z);
+        }
+
+        // Compass Data
+        if (d.compass) {
+            if (d.compass.valid) {
+                document.getElementById('comp-heading').innerText = d.compass.heading.toFixed(1);
+                document.getElementById('comp-x').innerText = d.compass.x.toFixed(2);
+                document.getElementById('comp-y').innerText = d.compass.y.toFixed(2);
+                document.getElementById('comp-z').innerText = d.compass.z.toFixed(2);
+            } else {
+                document.getElementById('comp-heading').innerText = "--";
+                document.getElementById('comp-x').innerText = "--";
+                document.getElementById('comp-y').innerText = "--";
+                document.getElementById('comp-z').innerText = "--";
+            }
         }
 
         // GPS Data Processing

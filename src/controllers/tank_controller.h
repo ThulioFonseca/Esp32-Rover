@@ -6,6 +6,7 @@
 #include "../controllers/motor_controller.h"
 #include "../sensors/imu_sensor.h"
 #include "../sensors/gps_sensor.h"
+#include "../sensors/compass_sensor.h"
 #include "../debug/debug_manager.h"
 
 class TankController {
@@ -14,6 +15,7 @@ private:
   MotorController motorController;
   ImuSensor imuSensor;
   GpsSensor gpsSensor;
+  CompassSensor compassSensor;
   DebugManager debugManager;
 
   Types::SystemState currentState;
@@ -31,6 +33,7 @@ public:
   const Types::MotorCommands& getMotorCommands()  const;
   const Types::ImuData&       getImuData()        const;
   const Types::GpsData&       getGpsData()        const;
+  const Types::CompassData&   getCompassData()    const;
   Types::SystemState          getSystemState()    const;
   bool                        isSystemArmed()     const;
 

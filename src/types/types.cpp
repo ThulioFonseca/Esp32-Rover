@@ -31,6 +31,10 @@ namespace Types {
       temperature(0.0f),
       isValid(false), lastUpdate(0) {}
 
+  CompassData::CompassData()
+    : x(0.0f), y(0.0f), z(0.0f), heading(0.0f),
+      isValid(false), lastUpdate(0) {}
+
   GpsData::GpsData()
     : latitude(0.0f), longitude(0.0f), altitude(0.0f),
       speed(0.0f), course(0.0f), satellites(0), hdop(0.0f),

@@ -20,9 +20,9 @@ class ImuSensor {
 public:
     ImuSensor();
 
-    // Inicializa o barramento I2C e configura os registradores do chip.
+    // Inicializa a configuração dos registradores do chip.
     // Retorna false se o chip não responder ao endereço configurado.
-    bool initialize();
+    bool initialize(TwoWire* wireInstance = &Wire);
 
     // Lê novos dados e atualiza os ângulos. Deve ser chamado a ~50 Hz.
     void update();
@@ -34,6 +34,7 @@ public:
     bool isDataValid() const;
 
 private:
+    TwoWire*          i2c;
     Types::ImuData    data;
     bool              initialized;
     unsigned long     lastUpdateMs;
@@ -48,6 +49,11 @@ private:
     int  calibrationSamples;
     long calibSumX, calibSumY, calibSumZ;
     static constexpr int CALIBRATION_SAMPLES_NEEDED = 200;
+
+    // Auto-recovery
+    uint8_t errorCount;
+    unsigned long lastInitAttempt;
+    const unsigned long INIT_RETRY_INTERVAL_MS = 5000;
 
     bool writeRegister(uint8_t reg, uint8_t value);
     bool readRegisters(uint8_t reg, uint8_t count, uint8_t* buf);

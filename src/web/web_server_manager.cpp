@@ -182,6 +182,7 @@ void WebServerManager::setupRoutes() {
     server.on("/api/sensors", HTTP_GET, [](AsyncWebServerRequest *request){
         Types::ImuData imuSnapshot;
         Types::GpsData gpsSnapshot;
+        Types::CompassData compassSnapshot;
         
         if (tankMutex == nullptr) {
             request->send(503, "application/json", "{\"error\":\"system not ready\"}");
@@ -190,6 +191,7 @@ void WebServerManager::setupRoutes() {
         if (xSemaphoreTake(tankMutex, 0) == pdTRUE) {
             imuSnapshot = tankController.getImuData();
             gpsSnapshot = tankController.getGpsData();
+            compassSnapshot = tankController.getCompassData();
             xSemaphoreGive(tankMutex);
         } else {
             request->send(503, "application/json", "{\"error\":\"system busy\"}");
@@ -235,6 +237,14 @@ void WebServerManager::setupRoutes() {
             gps["hdop"] = gpsSnapshot.hdop;
             gps["time"] = gpsSnapshot.dateTime;
         }
+
+        // Compass Data
+        JsonObject compass = doc["compass"].to<JsonObject>();
+        compass["valid"] = compassSnapshot.isValid;
+        compass["heading"] = compassSnapshot.heading;
+        compass["x"] = compassSnapshot.x;
+        compass["y"] = compassSnapshot.y;
+        compass["z"] = compassSnapshot.z;
 
         String response;
         serializeJson(doc, response);
