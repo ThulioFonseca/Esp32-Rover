@@ -1,11 +1,14 @@
 #include "compass_sensor.h"
 #include "../config/pins.h"
+#include "../controllers/tank_controller.h"
+
+extern TankController tankController;
 
 CompassSensor::CompassSensor() : i2c(&Wire), initialized(false), lastReadTime(0), errorCount(0), lastInitAttempt(0) {}
 
 // Força os pinos de I2C do Compass para recriar comunicação
 void CompassSensor::resetI2CBus() {
-    Serial.println("[AVISO] Executando I2C Bus Clear Agressivo no Compass...");
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_WARN, "Executando I2C Bus Clear Agressivo no Compass...");
     
     // Desabilita a interface Wire para liberar os pinos
     if(i2c) i2c->end();
@@ -42,7 +45,7 @@ void CompassSensor::resetI2CBus() {
     // Reinicializa a Wire com o novo clock mega lento (10kHz)
     if(i2c) i2c->begin(Pins::COMPASS_SDA, Pins::COMPASS_SCL, 10000);
     delay(50); // Dá um tempo pro hardware interno do ESP32 acordar
-    Serial.println("[INFO] I2C Bus Clear concluído.");
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "I2C Bus Clear concluído.");
 }
 
 bool CompassSensor::initialize(TwoWire* wireInstance) {
@@ -56,7 +59,7 @@ bool CompassSensor::initialize(TwoWire* wireInstance) {
     }
     lastInitAttempt = millis();
 
-    Serial.println("[INFO] (Re)Inicializando Compass HMC5883L (Manual I2C)...");
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "(Re)Inicializando Compass HMC5883L (Manual I2C)...");
     
     // Pequeno delay para estabilização do barramento
     delay(50);
@@ -64,7 +67,7 @@ bool CompassSensor::initialize(TwoWire* wireInstance) {
     // Verifica presença no barramento
     i2c->beginTransmission(HMC5883L_ADDRESS);
     if (i2c->endTransmission() != 0) {
-        Serial.println("[ERRO] Compass HMC5883L não encontrado no barramento I2C");
+        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Compass HMC5883L não encontrado no barramento I2C");
         
         // Tenta destravar o I2C Bus
         resetI2CBus();
@@ -72,7 +75,7 @@ bool CompassSensor::initialize(TwoWire* wireInstance) {
         // Tenta encontrar novamente
         i2c->beginTransmission(HMC5883L_ADDRESS);
         if (i2c->endTransmission() != 0) {
-             Serial.println("[ERRO CRÍTICO] Compass HMC5883L falhou mesmo após I2C Reset.");
+             tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Compass HMC5883L falhou mesmo após I2C Reset.");
              initialized = false;
              data.isValid = false;
              return false;
@@ -90,7 +93,7 @@ bool CompassSensor::initialize(TwoWire* wireInstance) {
     errorCount = 0;
     initialized = true;
     data.isValid = true;
-    Serial.println("[INFO] Compass HMC5883L inicializado com sucesso.");
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Compass HMC5883L inicializado com sucesso.");
     return true;
 }
 
@@ -156,7 +159,7 @@ void CompassSensor::update() {
     } else {
         errorCount++;
         if (errorCount > 5) {
-            Serial.println("[AVISO] Compass HMC5883L perdeu comunicação. Agendando reinicialização...");
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_WARN, "Compass HMC5883L perdeu comunicação. Agendando reinicialização...");
             initialized = false;
             data.isValid = false;
         }

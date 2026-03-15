@@ -2,10 +2,84 @@
 #include "../config/config.h"
 #include <Arduino.h>
 
-DebugManager::DebugManager() : isEnabled(false), lastPrintTime(0) {}
+DebugManager::DebugManager() : isEnabled(false), lastPrintTime(0), logHead(0), logTail(0), logCount(0) {}
 
 void DebugManager::initialize() {
-    lastPrintTime = millis();
+  lastPrintTime = millis();
+  logf(LOG_LEVEL_INFO, "DebugManager inicializado");
+}
+
+void DebugManager::enableSerialOutput(bool enable) {
+  // Para fins de simplificacao e compatibilidade com a struct, vou delegar pra isEnabled ou lidar na memoria
+}
+
+bool DebugManager::isSerialOutputEnabled() const {
+  return true; // placeholder para a nova implementacao
+}
+
+void DebugManager::logf(LogLevel level, const char* format, ...) {
+  char buf[256];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buf, sizeof(buf), format, args);
+  va_end(args);
+
+  String message(buf);
+  
+  const char* levelStr;
+  switch (level) {
+    case LOG_LEVEL_DEBUG: levelStr = "DEBUG"; break;
+    case LOG_LEVEL_INFO:  levelStr = "INFO";  break;
+    case LOG_LEVEL_WARN:  levelStr = "WARN";  break;
+    case LOG_LEVEL_ERROR: levelStr = "ERROR"; break;
+    default:              levelStr = "LOG";   break;
+  }
+
+  // Adiciona tempo simplificado (HH:MM:SS format ou apenas ms)
+  unsigned long ms = millis();
+  unsigned long s = ms / 1000;
+  char tsBuf[32];
+  snprintf(tsBuf, sizeof(tsBuf), "[%02lu:%02lu:%02lu]", (s / 3600), ((s % 3600) / 60), (s % 60));
+  
+  String finalMsg = String(tsBuf) + " [" + levelStr + "] " + message;
+
+  // Usa isEnabled como controle principal da serial.
+  if (isEnabled) {
+    Serial.println(finalMsg);
+  }
+
+  // Insere no buffer circular
+  logBuffer[logHead] = finalMsg;
+  logHead = (logHead + 1) % MAX_LOG_LINES;
+  
+  if (logCount < MAX_LOG_LINES) {
+    logCount++;
+  } else {
+    logTail = (logTail + 1) % MAX_LOG_LINES; // Sobrescreve o mais antigo
+  }
+}
+
+String DebugManager::getLogs() {
+  String output = "";
+  if (logCount == 0) {
+    return "Sem logs no momento.\n";
+  }
+
+  // Pre-aloca tamanho aproximado para eficiência
+  output.reserve(logCount * 50);
+
+  int current = logTail;
+  for (int i = 0; i < logCount; i++) {
+    output += logBuffer[current] + "\n";
+    current = (current + 1) % MAX_LOG_LINES;
+  }
+  return output;
+}
+
+void DebugManager::clearLogs() {
+  logHead = 0;
+  logTail = 0;
+  logCount = 0;
 }
 
 void DebugManager::setEnabled(bool enabled) {
@@ -17,30 +91,23 @@ bool DebugManager::isDebugEnabled() const {
 }
 
 void DebugManager::printChannelData(const Types::ChannelData& channels) {
-    if (!isEnabled || !shouldPrint()) return;
+    if (!shouldPrint()) return;
 
-    Serial.printf("CH: T:%4d S:%4d | nT:%.3f nS:%.3f",
-                  channels.throttle, channels.steering,
-                  channels.nThrottle, channels.nSteering);
-
-    for (int i = 0; i < 8; ++i) {
-        Serial.printf(" | AUX%d:%4d", i + 1, channels.aux[i]);
-    }
+    logf(LOG_LEVEL_DEBUG, "CH: T:%4d S:%4d | nT:%.3f nS:%.3f | AUX1:%4d AUX2:%4d",
+         channels.throttle, channels.steering, channels.nThrottle, channels.nSteering,
+         channels.aux[0], channels.aux[1]);
 }
 
 void DebugManager::printMotorCommands(const Types::MotorCommands& motors) {
-    if (!isEnabled || !shouldPrint()) return;
+    if (!shouldPrint()) return;
 
-    Serial.printf(" | MOT: L:%.3f R:%.3f | PWM: L:%4d R:%4d\n",
-                  motors.left, motors.right,
-                  motors.leftPWM, motors.rightPWM);
+    logf(LOG_LEVEL_DEBUG, "MOT: L:%.3f R:%.3f | PWM: L:%4d R:%4d",
+         motors.left, motors.right, motors.leftPWM, motors.rightPWM);
 
     updatePrintTime();
 }
 
 void DebugManager::printSystemStatus(Types::SystemState state) {
-    if (!isEnabled) return;
-
     const char* stateStr;
     switch (state) {
         case Types::INITIALIZING: stateStr = "INICIALIZANDO"; break;
@@ -51,25 +118,16 @@ void DebugManager::printSystemStatus(Types::SystemState state) {
         default:                  stateStr = "DESCONHECIDO";  break;
     }
 
-    Serial.printf("*** ESTADO: %s ***\n", stateStr);
+    logf(LOG_LEVEL_INFO, "*** ESTADO: %s ***", stateStr);
 }
 
 void DebugManager::printTimeout() {
-    if (!isEnabled || !shouldPrint()) return;
+    if (!shouldPrint()) return;
 
-    Serial.println("TIMEOUT: Sinal iBUS perdido — motores em neutro");
+    logf(LOG_LEVEL_WARN, "TIMEOUT: Sinal iBUS perdido — motores em neutro");
     updatePrintTime();
 }
 
-void DebugManager::printError(const char* message) {
-    // Erros são sempre impressos, independente do flag de debug.
-    Serial.printf("[ERRO]: %s\n", message);
-}
-
-void DebugManager::printInfo(const char* message) {
-    if (!isEnabled) return;
-    Serial.printf("[INFO]: %s\n", message);
-}
 
 bool DebugManager::shouldPrint() {
     return (millis() - lastPrintTime >= Config::DEBUG_INTERVAL_MS);

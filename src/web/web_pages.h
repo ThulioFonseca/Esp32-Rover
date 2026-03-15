@@ -126,12 +126,6 @@ const char index_html[] PROGMEM = R"rawliteral(
                         <div class="sensor-row"><span class="label">Y</span><div class="sensor-data"><span class="value" id="gyro-y">--</span><span class="unit"></span></div></div>
                         <div class="sensor-row"><span class="label">Z</span><div class="sensor-data"><span class="value" id="gyro-z">--</span><span class="unit"></span></div></div>
                     </div>
-                    <div class="card">
-                        <h3>Magnetometer (µT)</h3>
-                        <div class="sensor-row"><span class="label">X</span><div class="sensor-data"><span class="value" id="mag-x">--</span><span class="unit"></span></div></div>
-                        <div class="sensor-row"><span class="label">Y</span><div class="sensor-data"><span class="value" id="mag-y">--</span><span class="unit"></span></div></div>
-                        <div class="sensor-row"><span class="label">Z</span><div class="sensor-data"><span class="value" id="mag-z">--</span><span class="unit"></span></div></div>
-                    </div>
                 </div>
                 
                 <div style="margin-top: 20px;">
@@ -185,6 +179,23 @@ const char index_html[] PROGMEM = R"rawliteral(
                         </div>
                         
                         <button onclick="saveNetworkSettings()" class="btn-primary" style="margin-top: 20px; width: 100%;">SAVE & REBOOT</button>
+                    </div>
+                    
+                    <!-- System Logs Console -->
+                    <div class="card" style="grid-column: 1 / -1;">
+                        <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--header-border); padding-bottom: 12px; margin-bottom: 16px;">
+                            <h3 style="border: none; padding: 0; margin: 0;">System Logs</h3>
+                            <div class="setting-item" style="margin:0; min-width:180px;">
+                                <label for="auto-refresh-logs" style="font-size: 0.8rem; margin-right: 10px;">Auto Refresh Logs</label>
+                                <label class="switch">
+                                    <input type="checkbox" id="auto-refresh-logs" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <div id="log-console" 
+                             style="width: 100%; height: 300px; background: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 0.85rem; border-radius: 6px; padding: 12px; border: 1px solid var(--header-border); overflow-y: scroll; line-height: 1.5; white-space: pre-wrap; display: flex; flex-direction: column;"></div>
+                        <button onclick="clearSystemLogs()" class="btn-primary" style="margin-top: 10px; width: 100%; background: transparent; border: 1px solid var(--accent-color); color: var(--accent-color);">CLEAR CONSOLE</button>
                     </div>
                 </div>
             </div>
@@ -687,6 +698,56 @@ function toggleDebug() {
     }).catch(console.error);
 }
 
+function updateLogs() {
+    const logConsole = document.getElementById('log-console');
+    if (!logConsole || !document.getElementById('config').classList.contains('active')) return;
+
+    const autoRefresh = document.getElementById('auto-refresh-logs');
+    if (autoRefresh && !autoRefresh.checked) return;
+
+    fetch('/api/logs')
+        .then(r => r.text())
+        .then(text => {
+            if (text.trim() === '') return;
+            
+            // Processa as linhas para adicionar cores
+            const lines = text.trim().split('\n');
+            let html = '';
+            
+            lines.forEach(line => {
+                let color = '#d4d4d4'; // Default (White/Grey)
+                let weight = 'normal';
+                
+                if (line.includes('[ERROR]')) {
+                    color = '#f44336'; // Red
+                    weight = 'bold';
+                } else if (line.includes('[WARN]')) {
+                    color = '#ffc107'; // Yellow
+                } else if (line.includes('[INFO]')) {
+                    color = '#ffffff'; // Pure White
+                } else if (line.includes('[DEBUG]')) {
+                    color = '#2196f3'; // Blue
+                }
+                
+                html += `<div style="color: ${color}; font-weight: ${weight}; margin-bottom: 2px; border-bottom: 1px solid rgba(255,255,255,0.03);">${line}</div>`;
+            });
+            
+            if (logConsole.innerHTML !== html) {
+                logConsole.innerHTML = html;
+                logConsole.scrollTop = logConsole.scrollHeight;
+            }
+        })
+        .catch(console.error);
+}
+
+function clearSystemLogs() {
+    fetch('/api/clear-logs', { method: 'POST' })
+        .then(() => {
+            document.getElementById('log-console').innerHTML = '<div style="color: #6a9955">Console limpo.</div>';
+        })
+        .catch(console.error);
+}
+
 function calibrateIMU() {
     const btn = document.getElementById('btn-calibrate');
     const originalText = btn.innerText;
@@ -784,10 +845,6 @@ function updateSensors() {
             document.getElementById('gyro-x').innerText = fmt(d.gyro.x);
             document.getElementById('gyro-y').innerText = fmt(d.gyro.y);
             document.getElementById('gyro-z').innerText = fmt(d.gyro.z);
-
-            document.getElementById('mag-x').innerText = fmt(d.mag.x);
-            document.getElementById('mag-y').innerText = fmt(d.mag.y);
-            document.getElementById('mag-z').innerText = fmt(d.mag.z);
         }
 
         // Compass Data
@@ -900,7 +957,15 @@ function startPolling() {
         if(document.getElementById('sensors').classList.contains('active')) {
             updateSensors();
         }
+        // Logs são atualizados mais rápido e independentemente se na aba config
     }, rate);
+
+    // Loop de logs roda independente pra tempo real, a 500ms
+    setInterval(() => {
+        if(document.getElementById('config').classList.contains('active')) {
+            updateLogs();
+        }
+    }, 500);
 }
 
 function openTab(tabName) {

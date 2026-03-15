@@ -9,6 +9,17 @@
 #include "../sensors/compass_sensor.h"
 #include "../debug/debug_manager.h"
 
+struct PendingConfig {
+  volatile bool hasChanges = false;
+  volatile bool debugEnabled;
+  volatile bool darkTheme;
+  volatile bool systemArmed;
+  volatile bool wifiChange = false;
+  uint8_t wifiMode;
+  String wifiSSID;
+  String wifiPass;
+};
+
 class TankController {
 private:
   ChannelManager channelManager;
@@ -16,12 +27,13 @@ private:
   ImuSensor imuSensor;
   GpsSensor gpsSensor;
   CompassSensor compassSensor;
-  DebugManager debugManager;
 
   Types::SystemState currentState;
-  bool systemArmed;
+  volatile bool systemArmed;
 
 public:
+  DebugManager debugManager;
+  
   TankController();
 
   bool initialize();
@@ -38,6 +50,8 @@ public:
   bool                        isSystemArmed()     const;
 
   void calibrateImu(); // Dispara calibração assíncrona
+  String getSystemLogs(); // Retorna o buffer circular de logs
+  void clearSystemLogs();
 
 private:
   void updateSystem();

@@ -1,6 +1,9 @@
 #include "gps_sensor.h"
 #include "../config/config.h"
 #include "../config/pins.h"
+#include "../controllers/tank_controller.h"
+
+extern TankController tankController;
 
 GpsSensor::GpsSensor() : gpsSerial(1), lastValidTime(0) {}
 
@@ -9,7 +12,7 @@ bool GpsSensor::initialize() {
     gpsSerial.begin(Config::GPS_BAUD, SERIAL_8N1, Pins::PIN_GPS_RX, Pins::PIN_GPS_TX);
     
     // TinyGPSPlus doesn't require "initialization" per se, it just processes characters.
-    Serial.println("[INFO] GPS_Sensor inicializado na Serial1 (RX=" + String(Pins::PIN_GPS_RX) + ", TX=" + String(Pins::PIN_GPS_TX) + ")");
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "GPS_Sensor inicializado na Serial1 (RX=%d, TX=%d)", Pins::PIN_GPS_RX, Pins::PIN_GPS_TX);
     
     data.isValid = false;
     return true;

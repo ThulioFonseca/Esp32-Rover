@@ -1,6 +1,9 @@
 #include "imu_sensor.h"
 #include "../config/config.h"
 #include "../config/pins.h"
+#include "../controllers/tank_controller.h"
+
+extern TankController tankController;
 
 // ── Registradores MPU-6500 (compatível com MPU-6050/9250/9255) ────────────────
 static constexpr uint8_t REG_SMPLRT_DIV   = 0x19; // Sample Rate Divider
@@ -37,7 +40,7 @@ bool ImuSensor::initialize(TwoWire* wireInstance) {
     // Testa a comunicação enviando um byte e verificando ACK
     i2c->beginTransmission(Config::IMU_I2C_ADDR);
     if (i2c->endTransmission() != 0) {
-        Serial.println("[ERRO] MPU-6500 não respondeu no barramento I2C");
+        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "MPU-6500 não respondeu no barramento I2C");
         initialized = false;
         data.isValid = false;
         return false;
@@ -65,14 +68,14 @@ bool ImuSensor::initialize(TwoWire* wireInstance) {
     lastUpdateMs = millis();
     errorCount = 0;
     initialized  = true;
-    Serial.println("[INFO] MPU-6500 inicializado (±4g / ±500°/s / 100 Hz)");
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "MPU-6500 inicializado (±4g / ±500°/s / 100 Hz)");
     return true;
 }
 
 void ImuSensor::startCalibration() {
     if (!initialized) return;
     
-    Serial.println("[INFO] Iniciando calibração do IMU. Mantenha o rover parado...");
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Iniciando calibração do IMU. Mantenha o rover parado...");
     isCalibrating = true;
     calibrationSamples = 0;
     calibSumX = 0;
@@ -132,7 +135,7 @@ void ImuSensor::readSensorData() {
     if (!readRegisters(REG_DATA_START, 14, buf)) {
         errorCount++;
         if (errorCount > 5) {
-            Serial.println("[AVISO] MPU-6500 perdeu comunicação. Agendando reinicialização...");
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_WARN, "MPU-6500 perdeu comunicação. Agendando reinicialização...");
             initialized = false;
             data.isValid = false;
         }
@@ -213,9 +216,7 @@ void ImuSensor::processCalibration() {
             
             isCalibrating = false;
             
-            Serial.print("[INFO] Calibração concluída! Bias Z: ");
-            Serial.print(gyroBiasZ, 4);
-            Serial.println(" deg/s");
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Calibração concluída! Bias Z: %.4f deg/s", gyroBiasZ);
         }
     }
 }

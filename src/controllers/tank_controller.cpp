@@ -9,32 +9,31 @@ TankController::TankController()
     : currentState(Types::INITIALIZING), systemArmed(false) {}
 
 bool TankController::initialize() {
-    Serial.println("=== Inicializando TankController ===");
+    debugManager.initialize();
+    debugManager.setEnabled(Config::DEBUG_ENABLED);
+    debugManager.logf(DebugManager::LOG_LEVEL_INFO, "=== Inicializando TankController ===");
 
     currentState = Types::INITIALIZING;
 
-    debugManager.initialize();
-    debugManager.setEnabled(Config::DEBUG_ENABLED);
-
-    Serial.println("[INFO] Inicializando ChannelManager...");
+    debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando ChannelManager...");
     if (!channelManager.initialize()) {
-        Serial.println("[ERRO] Falha ao inicializar ChannelManager");
+        debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha ao inicializar ChannelManager");
         currentState = Types::ERROR;
         return false;
     }
 
-    Serial.println("[INFO] Inicializando MotorController...");
+    debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando MotorController...");
     if (!motorController.initialize()) {
-        Serial.println("[ERRO] Falha ao inicializar MotorController");
+        debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha ao inicializar MotorController");
         currentState = Types::ERROR;
         return false;
     }
 
     // Inicialização dos barramentos I2C
-    Serial.println("[INFO] Inicializando I2C 0 (IMU) nos pinos SDA=" + String(Pins::SDA) + ", SCL=" + String(Pins::SCL));
+    debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando I2C 0 (IMU) nos pinos SDA=%d, SCL=%d", Pins::SDA, Pins::SCL);
     Wire.begin(Pins::SDA, Pins::SCL, Config::IMU_I2C_FREQ_HZ);
     
-    Serial.println("[INFO] Inicializando I2C 1 (Compass) nos pinos SDA=" + String(Pins::COMPASS_SDA) + ", SCL=" + String(Pins::COMPASS_SCL));
+    debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando I2C 1 (Compass) nos pinos SDA=%d, SCL=%d", Pins::COMPASS_SDA, Pins::COMPASS_SCL);
     pinMode(Pins::COMPASS_SDA, INPUT_PULLUP);
     pinMode(Pins::COMPASS_SCL, INPUT_PULLUP);
     // Usa uma frequência de relógio extremamente lenta (10 kHz) para compensar a ausência de resistores de pull-up físicos fortes.
@@ -42,36 +41,36 @@ bool TankController::initialize() {
 
     // Sensores são opcionais e têm auto-recuperação, falha inicial não trava o boot.
     if (Config::IMU_ENABLED) {
-        Serial.println("[INFO] Inicializando ImuSensor...");
+        debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando ImuSensor...");
         if (!imuSensor.initialize(&Wire)) {
-            Serial.println("[AVISO] ImuSensor não encontrado no boot. Tentará reconectar em background.");
+            debugManager.logf(DebugManager::LOG_LEVEL_WARN, "ImuSensor não encontrado no boot. Tentará reconectar em background.");
         } else {
-            Serial.println("[INFO] ImuSensor inicializado — inciando calibração automática...");
+            debugManager.logf(DebugManager::LOG_LEVEL_INFO, "ImuSensor inicializado — inciando calibração automática...");
             imuSensor.startCalibration();
         }
     }
 
     if (Config::GPS_ENABLED) {
-        Serial.println("[INFO] Inicializando GpsSensor...");
+        debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando GpsSensor...");
         if (!gpsSensor.initialize()) {
-            Serial.println("[AVISO] GpsSensor não inicializado. Tentará reconectar em background.");
+            debugManager.logf(DebugManager::LOG_LEVEL_WARN, "GpsSensor não inicializado. Tentará reconectar em background.");
         }
         
-        Serial.println("[INFO] Inicializando CompassSensor...");
+        debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando CompassSensor...");
         if (!compassSensor.initialize(&Wire1)) {
-            Serial.println("[AVISO] CompassSensor não encontrado no boot. Tentará reconectar em background.");
+            debugManager.logf(DebugManager::LOG_LEVEL_WARN, "CompassSensor não encontrado no boot. Tentará reconectar em background.");
         }
     }
 
-    Serial.println("[INFO] Iniciando sequência de armamento...");
+    debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Iniciando sequência de armamento...");
     currentState = Types::ARMING;
     motorController.performArmingSequence();
 
     currentState = Types::ARMED;
     systemArmed = true;
-    Serial.println("[INFO] Armamento concluído — sistema ARMADO");
+    debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Armamento concluído — sistema ARMADO");
 
-    Serial.println("=== TankController inicializado com sucesso ===");
+    debugManager.logf(DebugManager::LOG_LEVEL_INFO, "=== TankController inicializado com sucesso ===");
     return true;
 }
 
@@ -135,23 +134,27 @@ void TankController::calibrateImu() {
     imuSensor.startCalibration();
 }
 
+String TankController::getSystemLogs() {
+    return debugManager.getLogs();
+}
+
+void TankController::clearSystemLogs() {
+    debugManager.clearLogs();
+}
+
 void TankController::updateSystem() {
     if (!channelManager.isDataValid()) return;
 
     processControls();
 
-    if (debugManager.isDebugEnabled()) {
-        debugManager.printChannelData(channelManager.getChannelData());
-        debugManager.printMotorCommands(motorController.getCommands());
-    }
+    debugManager.printChannelData(channelManager.getChannelData());
+    debugManager.printMotorCommands(motorController.getCommands());
 }
 
 void TankController::handleTimeout() {
     motorController.setNeutral();
 
-    if (debugManager.isDebugEnabled()) {
-        debugManager.printTimeout();
-    }
+    debugManager.printTimeout();
 
     // Recuperação do estado TIMEOUT → ARMED é tratada exclusivamente em updateState().
 }
@@ -175,7 +178,7 @@ void TankController::updateState() {
         currentState = Types::ARMED;
     }
 
-    if (previousState != currentState && debugManager.isDebugEnabled()) {
+    if (previousState != currentState) {
         debugManager.printSystemStatus(currentState);
     }
 }

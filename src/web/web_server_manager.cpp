@@ -5,7 +5,11 @@
 #include <ArduinoJson.h>
 #include "freertos/semphr.h"
 
+#include "controllers/tank_controller.h"
+
 extern TankController tankController;
+extern PendingConfig pendingConfig;
+extern volatile bool pendingReboot;
 
 // Mutex definido em main.cpp — protege o tankController contra acesso simultâneo
 // entre Core 0 (web callbacks) e Core 1 (TankControlTask).
@@ -25,8 +29,7 @@ WebServerManager::WebServerManager(const char* ssid, const char* password)
 
 bool WebServerManager::begin() {
     if (Config::WIFI_MODE == 1 && Config::STA_SSID.length() > 0) {
-        Serial.println("[INFO] Tentando conectar à rede Wi-Fi (Modo Station)...");
-        Serial.print("SSID: "); Serial.println(Config::STA_SSID);
+        tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Tentando conectar à rede Wi-Fi (Modo Station)... SSID: %s", Config::STA_SSID.c_str());
         
         WiFi.mode(WIFI_STA);
         WiFi.begin(Config::STA_SSID.c_str(), Config::STA_PASS.c_str());
@@ -41,28 +44,23 @@ bool WebServerManager::begin() {
         Serial.println();
 
         if (WiFi.status() == WL_CONNECTED) {
-            Serial.println("[INFO] Conectado com sucesso!");
-            Serial.print("[INFO] IP do Rover: ");
-            Serial.println(WiFi.localIP());
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Conectado com sucesso! IP do Rover: %s", WiFi.localIP().toString().c_str());
         } else {
-            Serial.println("[AVISO] Falha ao conectar. Retornando para Modo AP de segurança.");
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_WARN, "Falha ao conectar. Retornando para Modo AP de segurança.");
             Config::WIFI_MODE = 0; // Fallback temporário em memória (não salva no NVS para não sobrescrever a config do usuário)
         }
     }
 
     // Se estiver configurado para AP ou se o Station falhou no fallback
     if (Config::WIFI_MODE == 0) {
-        Serial.println("[INFO] Iniciando modo Access Point...");
+        tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Iniciando modo Access Point...");
         WiFi.mode(WIFI_AP);
         if (!WiFi.softAP(ap_ssid, ap_password)) {
-            Serial.println("[ERRO] Falha ao iniciar Access Point!");
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha ao iniciar Access Point!");
             return false;
         }
 
-        Serial.print("[INFO] AP iniciado: ");
-        Serial.println(WiFi.softAPSSID());
-        Serial.print("[INFO] IP do AP: ");
-        Serial.println(WiFi.softAPIP());
+        tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "AP iniciado: %s | IP: %s", WiFi.softAPSSID().c_str(), WiFi.softAPIP().toString().c_str());
     }
 
     // Pré-computa os dados estáticos sem risco de suspensão de scheduler no hot path
@@ -77,7 +75,7 @@ bool WebServerManager::begin() {
     setupRoutes();
 
     server.begin();
-    Serial.println("[INFO] Servidor Async iniciado na porta 80");
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Servidor Async iniciado na porta 80");
 
     return true;
 }
@@ -178,6 +176,18 @@ void WebServerManager::setupRoutes() {
         request->send(200, "application/json", response);
     });
 
+    // Logs API - Serve o buffer circular de logs em texto puro
+    server.on("/api/logs", HTTP_GET, [](AsyncWebServerRequest *request){
+        String logs = tankController.getSystemLogs();
+        request->send(200, "text/plain", logs);
+    });
+
+    // Limpar logs
+    server.on("/api/clear-logs", HTTP_POST, [](AsyncWebServerRequest *request){
+        tankController.clearSystemLogs();
+        request->send(200, "application/json", "{\"status\":\"ok\"}");
+    });
+
     // IMU / Sensors API
     server.on("/api/sensors", HTTP_GET, [](AsyncWebServerRequest *request){
         Types::ImuData imuSnapshot;
@@ -214,11 +224,6 @@ void WebServerManager::setupRoutes() {
         gyro["y"] = imuSnapshot.gyroY;
         gyro["z"] = imuSnapshot.gyroZ;
 
-        JsonObject mag = doc["mag"].to<JsonObject>();
-        mag["x"] = imuSnapshot.magX;
-        mag["y"] = imuSnapshot.magY;
-        mag["z"] = imuSnapshot.magZ;
-
         JsonObject angles = doc["angles"].to<JsonObject>();
         angles["roll"]  = imuSnapshot.roll;
         angles["pitch"] = imuSnapshot.pitch;
@@ -253,18 +258,13 @@ void WebServerManager::setupRoutes() {
 
     // System Settings API
     server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest *request){
-        bool armed = false;
         if (tankMutex == nullptr) {
             request->send(503, "application/json", "{\"error\":\"system not ready\"}");
             return;
         }
-        if (xSemaphoreTake(tankMutex, 0) == pdTRUE) {
-            armed = tankController.isSystemArmed();
-            xSemaphoreGive(tankMutex);
-        } else {
-            request->send(503, "application/json", "{\"error\":\"system busy\"}");
-            return;
-        }
+
+        // isSystemArmed é atomic volatile agora. Seguro ler sem mutex.
+        bool armed = tankController.isSystemArmed();
 
         JsonDocument doc;
         doc["dark_theme"] = Config::DARK_THEME;
@@ -286,6 +286,8 @@ void WebServerManager::setupRoutes() {
             return;
         }
         
+        // A calibração manipula flags simples de estado da IMU. Pode ser feito de forma tolerante,
+        // mas vamos manter o Try-Lock com 0 Ticks pra ser Async Safe. 
         if (xSemaphoreTake(tankMutex, 0) == pdTRUE) {
             tankController.calibrateImu();
             xSemaphoreGive(tankMutex);
@@ -300,54 +302,37 @@ void WebServerManager::setupRoutes() {
         JsonDocument doc;
         deserializeJson(doc, data);
 
-        if (tankMutex == nullptr) {
-            request->send(503, "application/json", "{\"error\":\"system not ready\"}");
-            return;
-        }
-        
         bool requiresReboot = false;
 
-        // --- Configurações que vão para o NVS não devem estar dentro do mutex do controle de motores ---
-        if (!doc["dark_theme"].isNull()) {
-            Config::saveThemePreference(doc["dark_theme"]);
-        }
+        // Captura os novos estados para processamento seguro na Main Task
+        // Não mexemos no NVS nem no TankController aqui para evitar Kernel Panic.
         
-        if (!doc["debug"].isNull()) {
-            Config::saveDebugPreference(doc["debug"]);
-        }
+        pendingConfig.debugEnabled = !doc["debug"].isNull() ? (bool)doc["debug"] : Config::DEBUG_ENABLED;
+        pendingConfig.darkTheme    = !doc["dark_theme"].isNull() ? (bool)doc["dark_theme"] : Config::DARK_THEME;
         
-        // Atualiza rede se os campos forem enviados
+        bool armedSnapshot;
+        if (tankMutex != nullptr && xSemaphoreTake(tankMutex, 0) == pdTRUE) {
+            armedSnapshot = tankController.isSystemArmed();
+            xSemaphoreGive(tankMutex);
+        } else {
+            armedSnapshot = false; // Fallback se ocupado, idealmente mantemos o estado
+        }
+        pendingConfig.systemArmed   = !doc["armed"].isNull() ? (bool)doc["armed"] : armedSnapshot;
+
         if (!doc["wifi_mode"].isNull()) {
-            uint8_t mode = doc["wifi_mode"];
-            String ssid = doc["sta_ssid"] | Config::STA_SSID;
-            String pass = doc["sta_pass"] | Config::STA_PASS;
-            
-            // Salva na memória NVS
-            Config::saveNetworkPreferences(mode, ssid, pass);
+            pendingConfig.wifiChange = true;
+            pendingConfig.wifiMode   = doc["wifi_mode"];
+            pendingConfig.wifiSSID   = doc["sta_ssid"] | Config::STA_SSID;
+            pendingConfig.wifiPass   = doc["sta_pass"] | Config::STA_PASS;
             requiresReboot = true;
         }
 
-        // --- Variáveis dinâmicas que pertencem ao TankController (Requerem Mutex) ---
-        if (xSemaphoreTake(tankMutex, 0) == pdTRUE) {
-            if (!doc["debug"].isNull()) {
-                tankController.setDebugMode(Config::DEBUG_ENABLED);
-            }
-            if (!doc["armed"].isNull()) {
-                tankController.setSystemArmed(doc["armed"]);
-            }
-            
-            xSemaphoreGive(tankMutex);
-        } else {
-            // Se o NVS já foi salvo mas não conseguiu acessar o controller, ainda retorna erro ou sucesso com warning?
-            // Vamos retornar busy para garantir que o cliente saiba da falha de state.
-            request->send(503, "application/json", "{\"error\":\"system busy\"}");
-            return;
-        }
+        pendingConfig.hasChanges = true;
 
         if (requiresReboot) {
             request->send(200, "application/json", "{\"status\":\"rebooting\"}");
-            delay(500);
-            ESP.restart();
+            // Sinaliza para a main task efetuar o restart (onde delay é seguro)
+            pendingReboot = true;
         } else {
             request->send(200, "application/json", "{\"status\":\"success\"}");
         }
