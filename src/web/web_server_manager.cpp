@@ -193,6 +193,8 @@ void WebServerManager::setupRoutes() {
         Types::ImuData imuSnapshot;
         Types::GpsData gpsSnapshot;
         Types::CompassData compassSnapshot;
+        Types::MotorCommands motorSnapshot;
+        bool isArmedSnapshot = false;
         
         if (tankMutex == nullptr) {
             request->send(503, "application/json", "{\"error\":\"system not ready\"}");
@@ -202,6 +204,8 @@ void WebServerManager::setupRoutes() {
             imuSnapshot = tankController.getImuData();
             gpsSnapshot = tankController.getGpsData();
             compassSnapshot = tankController.getCompassData();
+            motorSnapshot = tankController.getMotorCommands();
+            isArmedSnapshot = tankController.isSystemArmed();
             xSemaphoreGive(tankMutex);
         } else {
             request->send(503, "application/json", "{\"error\":\"system busy\"}");
@@ -250,6 +254,12 @@ void WebServerManager::setupRoutes() {
         compass["x"] = compassSnapshot.x;
         compass["y"] = compassSnapshot.y;
         compass["z"] = compassSnapshot.z;
+
+        // System & Motor Data
+        doc["armed"] = isArmedSnapshot;
+        JsonObject motors = doc["motors"].to<JsonObject>();
+        motors["left"] = motorSnapshot.left;
+        motors["right"] = motorSnapshot.right;
 
         String response;
         serializeJson(doc, response);

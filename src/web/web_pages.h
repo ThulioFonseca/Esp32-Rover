@@ -24,6 +24,7 @@ const char index_html[] PROGMEM = R"rawliteral(
             <button class="tab-btn active" onclick="openTab('home')">HOME</button>
             <button class="tab-btn" onclick="openTab('radio')">RADIO</button>
             <button class="tab-btn" onclick="openTab('sensors')">SENSORS</button>
+            <button class="tab-btn" onclick="openTab('hud-tab')">HUD</button>
             <button class="tab-btn" onclick="openTab('config')">CONFIG</button>
         </nav>
 
@@ -133,6 +134,136 @@ const char index_html[] PROGMEM = R"rawliteral(
                         CALIBRATE IMU (ZERO YAW)
                     </button>
                     <p style="font-size: 0.8em; color: var(--text-muted); text-align: center; margin-top: 8px;">Keep the rover completely still before calibrating.</p>
+                </div>
+            </div>
+
+            <div id="hud-tab" class="tab-content">
+                <div class="hud-viewport">
+                    <div class="lens-fx"></div>
+                    <div class="screen-fx"></div>
+
+                    <div id="boot-screen">
+                        <div class="boot-line" id="b1">> POWER ON... OK</div>
+                        <div class="boot-line" id="b2">> MOUNTING FILESYSTEM... OK</div>
+                        <div class="boot-line" id="b3">> INIT IMU MPU6050... CALIBRATING... DONE</div>
+                        <div class="boot-line" id="b4">> SECURING GNSS LINK... TRACKING... OK</div>
+                        <div class="boot-line" id="b5" style="color: #fff">> ARMING UGV ESP-TANK...</div>
+                    </div>
+
+                    <svg class="optics-bg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+                        <circle cx="960" cy="540" r="400" stroke="var(--primary)" stroke-width="1" fill="none" stroke-dasharray="2 10" style="transition: stroke 0.2s;" />
+                        <circle cx="960" cy="540" r="600" stroke="var(--primary)" stroke-width="0.5" fill="none" style="transition: stroke 0.2s;" />
+                        <line x1="0" y1="540" x2="1920" y2="540" stroke="var(--primary)" stroke-width="0.5" stroke-dasharray="5 5" style="transition: stroke 0.2s;" />
+                        <line x1="960" y1="0" x2="960" y2="1080" stroke="var(--primary)" stroke-width="0.5" stroke-dasharray="5 5" style="transition: stroke 0.2s;" />
+                    </svg>
+
+                    <div class="hud-container" id="main-hud">
+                        <div class="center-hud">
+                            <svg class="svg-center" viewBox="0 0 600 600">
+                                <defs>
+                                    <linearGradient id="compass-fade-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" stop-color="black" /><stop offset="10%" stop-color="black" />
+                                        <stop offset="30%" stop-color="white" /><stop offset="70%" stop-color="white" />
+                                        <stop offset="90%" stop-color="black" /><stop offset="100%" stop-color="black" />
+                                    </linearGradient>
+                                    <mask id="compass-fade" maskUnits="objectBoundingBox"><rect x="-150" y="-50" width="300" height="100" fill="url(#compass-fade-gradient)" /></mask>
+
+                                    <linearGradient id="window-fade-gradient" x1="0" y1="0" x2="0" y2="600" gradientUnits="userSpaceOnUse">
+                                        <stop offset="0%" stop-color="black" /><stop offset="22%" stop-color="black" />   
+                                        <stop offset="35%" stop-color="white" /><stop offset="70%" stop-color="white" />   
+                                        <stop offset="85%" stop-color="black" /><stop offset="100%" stop-color="black" />  
+                                    </linearGradient>
+                                    <mask id="window-fade" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="600"><rect x="0" y="0" width="600" height="600" fill="url(#window-fade-gradient)" /></mask>
+                                </defs>
+
+                                <text x="300" y="210" id="critical-warn-msg">CRITICAL TILT ANGLE</text>
+
+                                <g class="compass-group" mask="url(#compass-fade)">
+                                    <path d="M -150 0 L 150 0" class="stroke-main" />
+                                    <polygon points="0,0 -8,-10 8,-10" fill="var(--danger)" />
+                                    <g id="compass-tape"></g>
+                                </g>
+
+                                <g transform="translate(300, 125)">
+                                    <text x="-25" y="0" class="center-text-readout" font-size="13" id="ret-pitch" text-anchor="end">P: 0°</text>
+                                    <circle cx="0" cy="-4" r="1.5" fill="var(--primary-dim)" style="transition: fill 0.2s;" />
+                                    <text x="25" y="0" class="center-text-readout" font-size="13" id="ret-roll" text-anchor="start">R: 0°</text>
+                                </g>
+
+                                <path d="M 180 300 A 120 120 0 0 1 200 180" class="stroke-dim" stroke-width="6" />
+                                <path d="M 180 300 A 120 120 0 0 1 200 180" class="stroke-main" stroke-width="6" id="arc-speed" stroke-dasharray="0 400" />
+                                <text x="160" y="240" class="center-text-readout" id="center-spd" text-anchor="end">0.0</text>
+                                <text x="160" y="255" class="center-text-label" text-anchor="end">KM/H</text>
+
+                                <path d="M 420 300 A 120 120 0 0 0 400 180" class="stroke-dim" stroke-width="6" />
+                                <path d="M 420 300 A 120 120 0 0 0 400 180" stroke="var(--warning)" fill="none" stroke-width="6" id="arc-batt" stroke-dasharray="188 400" />
+                                <text x="440" y="240" class="center-text-readout" style="fill: var(--warning)" id="center-bat" text-anchor="start">PWR</text>
+                                <text x="440" y="255" class="center-text-label" text-anchor="start">SYSTEM</text>
+
+                                <g transform="translate(300, 300)">
+                                    <circle cx="0" cy="0" r="3" fill="var(--danger)" />
+                                    <path d="M -20 0 L -8 0 M 8 0 L 20 0 M 0 -20 L 0 -8" class="stroke-main" stroke-width="2" />
+                                    <path d="M -50 0 L -30 0 L -30 10 M 50 0 L 30 0 L 30 10" class="stroke-dim" />
+                                </g>
+
+                                <g mask="url(#window-fade)">
+                                    <g id="horizon-group" transform="translate(300, 300)">
+                                        <g id="pitch-ladder"></g>
+                                    </g>
+                                </g>
+                            </svg>
+                        </div>
+
+                        <div class="side-panel panel-top-left">
+                            <div class="panel-header">SYS-OPS</div>
+                            <div class="data-row"><span class="data-label">UNIT</span><span class="data-value data-value-small">UGV ESP-TANK</span></div>
+                            <div class="data-row"><span class="data-label">MODE</span><span class="data-value data-value-small" style="color: var(--warning);">MANUAL FPV</span></div>
+                            <div class="data-row" style="margin-top: 4px;"><span class="data-label">STATE</span><span class="status-badge" id="hud-sys-state">DISARMED</span></div>
+                            <div class="data-row" style="margin-top: 8px;"><span class="data-label">UPTIME</span><span class="data-value data-value-small" id="hud-sys-uptime" style="color: var(--primary-dim);">00:00:00</span></div>
+                        </div>
+
+                        <div class="side-panel panel-top-right">
+                            <div class="panel-header">SAT-NAV</div>
+                            <div class="data-row"><span class="data-label">LAT</span><span class="data-value data-value-small" id="hud-gps-lat">--</span></div>
+                            <div class="data-row"><span class="data-label">LNG</span><span class="data-value data-value-small" id="hud-gps-lng">--</span></div>
+                            <div class="data-row"><span class="data-label">ALT</span><span class="data-value data-value-small" id="hud-gps-alt">--</span></div>
+                            <div class="accel-row">
+                                <div class="accel-item"><span class="data-label">SATS</span><span class="data-value" id="hud-gps-sats" style="color: var(--primary);">0</span></div>
+                                <div class="accel-item"><span class="data-label">HDOP</span><span class="data-value" id="hud-gps-hdop">--</span></div>
+                                <div class="accel-item"><span class="data-label">CRS</span><span class="data-value" id="hud-gps-crs">--</span></div>
+                                <div class="accel-item"><span class="data-label">SPD</span><span class="data-value" id="hud-gps-spd">--</span></div>
+                            </div>
+                            <div style="text-align: right; color: var(--primary-dim); font-size: 0.55rem; font-weight: bold; transition: color 0.2s;">TIME: <span id="hud-sys-time-local">--</span></div>
+                        </div>
+
+                        <div class="side-panel panel-left">
+                            <div class="panel-header">DRIVE (TRACKS)</div>
+                            <div class="motor-grid" style="grid-template-columns: 1fr;">
+                                <div><div class="data-row"><span class="data-label">LEFT</span><span class="data-value" id="hud-mot-l">0%</span></div><div class="bar-bg"><div class="bar-fill" id="hud-bar-mot-l"></div></div></div>
+                                <div><div class="data-row"><span class="data-label">RIGHT</span><span class="data-value" id="hud-mot-r">0%</span></div><div class="bar-bg"><div class="bar-fill" id="hud-bar-mot-r"></div></div></div>
+                            </div>
+                            <div class="push-bottom">
+                                <div class="data-row"><span class="data-label">TEMP</span><span class="data-value" id="hud-imu-temp">--°C</span></div>
+                                <div class="data-row"><span class="data-label">LINK</span><span class="data-value" id="hud-sys-link" style="color: var(--primary-dim)">OK</span></div>
+                            </div>
+                        </div>
+
+                        <div class="side-panel panel-right">
+                            <div class="panel-header">IMU SENSE</div>
+                            <div class="accel-row">
+                                <div class="accel-item"><span class="data-label">AX</span><span class="data-value" id="hud-acc-x">0.0</span></div>
+                                <div class="accel-item"><span class="data-label">AY</span><span class="data-value" id="hud-acc-y">0.0</span></div>
+                                <div class="accel-item"><span class="data-label">AZ</span><span class="data-value" id="hud-acc-z">1.0</span></div>
+                            </div>
+                            <div style="margin-top: 4px;">
+                                <div class="data-row"><span class="data-label">SLOPE</span><span class="data-value" id="hud-slope-val">0°</span></div>
+                                <div class="bar-bg"><div class="bar-fill" id="hud-bar-slope" style="width: 0%;"></div></div>
+                            </div>
+                            <div class="push-bottom">
+                                <div class="data-row"><span class="data-label">STATUS</span><span class="data-value" id="hud-imu-stat" style="color: var(--primary-dim)">NOMINAL</span></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -492,6 +623,175 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
+/* HUD Tab Specific Styles */
+#hud-tab {
+    padding: 0;
+    margin: 0;
+    background-color: #050807;
+    position: relative;
+    overflow: hidden;
+    height: 85vh;
+    min-height: 600px;
+    border-radius: 12px;
+    box-shadow: inset 0 0 100px rgba(0,0,0,0.8);
+}
+
+.hud-viewport {
+    --primary: var(--accent-color);
+    --primary-dim: rgba(var(--accent-rgb), 0.25); /* We'll need to define this or use a workaround */
+    --danger: var(--watermelon);
+    --warning: #ffb300;
+    --text-main: var(--text-main);
+    --text-dim: rgba(224, 248, 245, 0.65);
+    --font-mono: 'Share Tech Mono', 'Courier New', monospace;
+    --glow: 0 0 10px var(--primary);
+    --fpv-aberration: 1.5px 0px 1px rgba(255,0,0,0.6), -1.5px 0px 1px rgba(0,255,255,0.6), 0 0 4px rgba(0,0,0,0.9);
+
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    color: var(--text-main);
+    font-family: var(--font-mono);
+}
+
+/* Fallback for rgb if not defined */
+[data-theme="dark"] .hud-viewport {
+    --primary-dim: rgba(235, 251, 55, 0.25);
+}
+:root:not([data-theme="dark"]) .hud-viewport {
+    --primary-dim: rgba(206, 59, 155, 0.25);
+}
+
+.hud-viewport.critical-mode {
+    --primary: var(--watermelon);
+    --primary-dim: rgba(228, 37, 72, 0.3);
+    --glow: 0 0 15px var(--watermelon);
+}
+
+.lens-fx {
+    position: absolute; inset: 0; pointer-events: none; z-index: 998;
+    box-shadow: inset 0 0 150px rgba(0,0,0,1);
+    background: radial-gradient(circle at center, transparent 60%, rgba(0,0,0,0.4) 100%);
+}
+.screen-fx { 
+    position: absolute; inset: 0; pointer-events: none; z-index: 999; 
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%); background-size: 100% 4px; 
+}
+.optics-bg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; opacity: 0.12; transition: opacity 1s; }
+
+#boot-screen {
+    position: absolute; inset: 0; z-index: 9999; background: #050807;
+    display: flex; flex-direction: column; justify-content: flex-end; padding: 40px;
+    font-size: 18px; color: var(--primary); text-shadow: var(--glow);
+    transition: opacity 0.3s ease-out;
+}
+.boot-line { margin: 5px 0; opacity: 0; }
+
+.hud-container { 
+    position: absolute; inset: 0; width: 100%; height: 100%; z-index: 10; 
+    opacity: 0; transform: scale(0.95); transition: opacity 0.5s, transform 0.5s cubic-bezier(0.1, 1, 0.3, 1);
+}
+.hud-container.active { opacity: 1; transform: scale(1); }
+
+.center-hud { position: absolute; inset: 0; display: flex; justify-content: center; align-items: center; pointer-events: none; z-index: 5; }
+    .svg-center { 
+        width: clamp(300px, 85vmin, 850px); 
+        height: clamp(300px, 85vmin, 850px); 
+        aspect-ratio: 1;
+        overflow: visible; 
+        filter: drop-shadow(var(--glow)); 
+        transition: filter 0.2s;
+    }
+
+.stroke-main { stroke: var(--primary); fill: none; stroke-width: 1.5; transition: stroke 0.2s; }
+.stroke-dim { stroke: var(--primary-dim); fill: none; stroke-width: 1; transition: stroke 0.2s; }
+.stroke-danger { stroke: var(--danger); fill: none; stroke-width: 2; }
+
+.center-text-readout { font-family: var(--font-mono); font-size: 14px; fill: var(--primary); font-weight: bold; text-shadow: 0 0 5px rgba(0,0,0,0.8); transition: fill 0.2s; }
+.center-text-label { font-family: var(--font-mono); font-size: 8px; fill: var(--text-dim); }
+.compass-group { transform: translate(300px, 80px); }
+
+#critical-warn-msg {
+    font-size: 20px; letter-spacing: 4px; fill: var(--danger); text-anchor: middle;
+    opacity: 0; transition: opacity 0.2s;
+}
+.critical-mode #critical-warn-msg {
+    animation: blink-fast 0.3s infinite alternate;
+}
+@keyframes blink-fast { 0% { opacity: 1; } 100% { opacity: 0.2; } }
+
+.side-panel {
+    position: absolute; width: clamp(130px, 15vw, 190px); 
+    opacity: 0.85; display: flex; flex-direction: column; gap: clamp(4px, 0.6vw, 6px); z-index: 20; 
+    text-shadow: var(--fpv-aberration);
+}
+.panel-left, .panel-right { bottom: clamp(10px, 4vh, 30px); }
+.panel-left { left: clamp(15px, 3vw, 40px); }
+.panel-right { right: clamp(15px, 3vw, 40px); }
+.panel-top-left { top: clamp(15px, 3vh, 30px); left: clamp(15px, 3vw, 40px); }
+.panel-top-right { top: clamp(15px, 3vh, 30px); right: clamp(15px, 3vw, 40px); }
+
+.panel-header { font-size: clamp(0.55rem, 0.65vw, 0.65rem); letter-spacing: 3px; color: var(--primary); border-bottom: 1px solid var(--primary-dim); padding-bottom: 2px; margin-bottom: 2px; text-transform: uppercase; transition: color 0.2s, border-color 0.2s; }
+.data-row { display: flex; justify-content: space-between; align-items: flex-end; line-height: 1; margin-bottom: 2px; }
+.data-label { color: var(--text-dim); font-size: clamp(0.5rem, 0.6vw, 0.65rem); }
+.data-value { font-weight: bold; color: var(--text-main); font-size: clamp(0.7rem, 0.85vw, 0.85rem); transition: color 0.2s; }
+.data-value-small { font-weight: normal; font-size: clamp(0.65rem, 0.7vw, 0.75rem); color: var(--text-main); }
+
+.bar-bg { width: 100%; height: 2px; background: rgba(255,255,255,0.1); margin-top: 2px; }
+.bar-fill { height: 100%; background: var(--primary); box-shadow: var(--glow); transition: width 0.1s linear, background 0.2s; }
+
+.motor-grid { display: grid; gap: 4px; }
+.accel-row { display: flex; justify-content: space-between; padding: 2px 0; border-top: 1px solid rgba(255,255,255,0.1); border-bottom: 1px solid rgba(255,255,255,0.1); margin-top: 4px; margin-bottom: 4px; }
+.accel-item { display: flex; flex-direction: column; align-items: center; }
+.accel-item .data-label { font-size: 0.45rem; margin-bottom: 2px; color: var(--primary-dim); transition: color 0.2s; }
+.accel-item .data-value { font-size: 0.65rem; text-shadow: var(--fpv-aberration); }
+
+.status-badge {
+    display: inline-block; color: var(--danger); border: 1px solid var(--danger); background: rgba(0,0,0,0.5);
+    padding: 1px 4px; font-size: clamp(0.55rem, 0.65vw, 0.7rem); font-weight: bold; text-shadow: none; animation: pulse-danger 1.5s infinite;
+}
+@keyframes pulse-danger { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.push-bottom { margin-top: auto; }
+
+/* Responsivo para Tablet (intermediate screens) */
+@media (max-width: 960px) and (min-height: 600px) {
+    .hud-viewport {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .svg-center {
+        width: clamp(280px, 50vh, 550px) !important;
+        height: clamp(280px, 50vh, 550px) !important;
+    }
+    
+    .side-panel {
+        width: clamp(110px, 12vw, 150px);
+        gap: 3px;
+    }
+    
+    .panel-header {
+        font-size: 0.54rem;
+        margin-bottom: 1px;
+    }
+    
+    .data-row {
+        margin-bottom: 1px;
+    }
+    
+    .data-label {
+        font-size: 0.48rem;
+    }
+    
+    .data-value {
+        font-size: 0.62rem;
+    }
+}
+
 /* Responsivo para Smartphone */
 @media (max-width: 600px) {
     .app-container { padding: 12px; }
@@ -510,6 +810,158 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
     
     li span.label, .sensor-row .label { font-size: 0.85rem; }
     li span.value, .sensor-row .value { font-size: 0.95rem; }
+
+    /* HUD Responsiveness - Mobile specific */
+    #hud-tab { 
+        min-height: 550px; 
+        height: 80vh; 
+        margin-left: -12px; 
+        margin-right: -12px; 
+        border-radius: 0;
+    }
+    
+    .hud-viewport {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 0;
+    }
+    
+    .center-hud {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    
+    .side-panel { 
+        width: clamp(95px, 40vw, 155px); 
+        gap: 3px;
+        height: auto;
+        max-height: none;
+    }
+    
+    .panel-header { 
+        font-size: 0.52rem; 
+        letter-spacing: 1.5px; 
+        margin-bottom: 1px; 
+    }
+    
+    .data-label { 
+        font-size: 0.48rem; 
+    }
+    
+    .data-value { 
+        font-size: 0.6rem; 
+    }
+    
+    .data-value-small { 
+        font-size: 0.55rem; 
+    }
+    
+    .data-row {
+        margin-bottom: 1px;
+        line-height: 1.1;
+    }
+    
+    /* Layout positioning for mobile: layers architecture */
+    .panel-top-left { 
+        top: 10px; 
+        left: 10px; 
+        position: absolute;
+    }
+    
+    .panel-top-right { 
+        top: 10px; 
+        right: 10px; 
+        position: absolute;
+    }
+    
+    .panel-left { 
+        bottom: 10px; 
+        left: 10px; 
+        position: absolute;
+    }
+    
+    .panel-right { 
+        bottom: 10px; 
+        right: 10px; 
+        position: absolute;
+    }
+    
+    .svg-center { 
+        width: clamp(260px, 70vmin, 480px) !important;
+        height: clamp(260px, 70vmin, 480px) !important;
+        max-width: none;
+        max-height: none;
+    }
+    
+    #critical-warn-msg { 
+        font-size: 18px; 
+    }
+    
+    .accel-row {
+        padding: 1px 0;
+        margin-top: 2px;
+        margin-bottom: 2px;
+    }
+    
+    .accel-item .data-label {
+        font-size: 0.4rem;
+        margin-bottom: 1px;
+    }
+    
+    .accel-item .data-value {
+        font-size: 0.58rem;
+    }
+    
+    .bar-bg {
+        height: 1px;
+        margin-top: 1px;
+    }
+    
+    .push-bottom {
+        margin-top: 3px;
+    }
+}
+
+/* Extra small devices / very narrow viewports */
+@media (max-height: 550px) {
+    #hud-tab {
+        min-height: 500px;
+        height: 90vh;
+    }
+    
+    .svg-center {
+        width: clamp(200px, 50vmin, 350px) !important;
+        height: clamp(200px, 50vmin, 350px) !important;
+    }
+    
+    .side-panel {
+        width: clamp(80px, 35vw, 130px);
+        gap: 2px;
+    }
+    
+    .panel-header {
+        font-size: 0.5rem;
+        margin-bottom: 1px;
+    }
+    
+    .data-label {
+        font-size: 0.45rem;
+    }
+    
+    .data-value {
+        font-size: 0.55rem;
+    }
+    
+    .data-row {
+        margin-bottom: 0.5px;
+    }
 }
 )rawliteral";
 
@@ -957,6 +1409,12 @@ function startPolling() {
         if(document.getElementById('sensors').classList.contains('active')) {
             updateSensors();
         }
+        if(document.getElementById('hud-tab').classList.contains('active')) {
+            fetch('/api/sensors')
+            .then(r => r.json())
+            .then(d => updateHUD(d))
+            .catch(console.error);
+        }
         // Logs são atualizados mais rápido e independentemente se na aba config
     }, rate);
 
@@ -977,8 +1435,172 @@ function openTab(tabName) {
     
     document.getElementById(tabName).classList.add('active');
     event.currentTarget.classList.add('active');
+
+    if (tabName === 'hud-tab') {
+        initHUD();
+    }
     
     startPolling();
+}
+
+// --- HUD Logic ---
+let hudBootTime = 0;
+let hudInitialized = false;
+
+function initHUD() {
+    if (hudInitialized) return;
+    
+    // Construct Pitch Ladder
+    const pitchGroup = document.getElementById('pitch-ladder');
+    if (pitchGroup) {
+        pitchGroup.innerHTML = '';
+        for (let i = -60; i <= 60; i += 10) {
+            const y = i * 3;
+            const w = (i === 0) ? 120 : ((i % 20 === 0) ? 70 : 40);
+            const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            if (i === 0) {
+                g.innerHTML = `<path d="M-${w},0 L-30,0 M30,0 L${w},0" class="stroke-main" stroke-width="2" />`;
+            } else if (i > 0) {
+                g.innerHTML = `
+                    <path d="M-${w},-${y} L-20,-${y} M20,-${y} L${w},-${y}" class="stroke-main" />
+                    <text x="-${w + 15}" y="-${y - 4}" class="center-text-readout" font-size="10" text-anchor="end">${i}</text>
+                    <text x="${w + 15}" y="-${y - 4}" class="center-text-readout" font-size="10" text-anchor="start">${i}</text>
+                `;
+            } else {
+                const absY = Math.abs(y);
+                g.innerHTML = `
+                    <path d="M-${w},${absY} L-20,${absY} L-20,${absY + 5} M20,${absY + 5} L20,${absY} L${w},${absY}" class="stroke-main" stroke-dasharray="6" />
+                    <text x="-${w + 15}" y="${absY + 4}" class="center-text-readout" font-size="10" text-anchor="end">${Math.abs(i)}</text>
+                    <text x="${w + 15}" y="${absY + 4}" class="center-text-readout" font-size="10" text-anchor="start">${Math.abs(i)}</text>
+                `;
+            }
+            pitchGroup.appendChild(g);
+        }
+    }
+
+    // Construct Compass Tape
+    const compassTape = document.getElementById('compass-tape');
+    if (compassTape) {
+        compassTape.innerHTML = '';
+        const headings = ['N', '030', '060', 'E', '120', '150', 'S', '210', '240', 'W', '300', '330'];
+        const tapeContent = [...headings, ...headings, ...headings]; 
+        tapeContent.forEach((h, index) => {
+            const xPos = index * 40; 
+            const mark = document.createElementNS("http://www.w3.org/2000/svg", "g");
+            mark.innerHTML = `
+                <line x1="${xPos}" y1="-5" x2="${xPos}" y2="-15" class="stroke-main" stroke-width="1" />
+                <text x="${xPos}" y="-20" class="center-text-readout" font-size="10" text-anchor="middle">${h}</text>
+            `;
+            compassTape.appendChild(mark);
+        });
+    }
+
+    // Boot Sequence
+    const lines = ['b1', 'b2', 'b3', 'b4', 'b5'];
+    let delay = 200;
+    lines.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) setTimeout(() => { el.style.opacity = 1; }, delay);
+        delay += 300;
+    });
+    setTimeout(() => {
+        const boot = document.getElementById('boot-screen');
+        const mainHud = document.getElementById('main-hud');
+        if (boot) boot.style.opacity = 0;
+        if (mainHud) mainHud.classList.add('active');
+        setTimeout(() => { if (boot) boot.style.display = 'none'; }, 300);
+    }, delay + 400);
+
+    hudBootTime = Date.now();
+    hudInitialized = true;
+}
+
+function updateHUD(data) {
+    if (!hudInitialized) return;
+
+    const pitch = data.angles.pitch;
+    const roll = data.angles.roll;
+    const yaw = data.angles.yaw;
+    const speed = data.gps.valid ? data.gps.speed : 0;
+    
+    // Tip-Over Alert
+    const maxSlope = Math.max(Math.abs(pitch), Math.abs(roll));
+    const isCritical = maxSlope > 35;
+    const viewport = document.querySelector('.hud-viewport');
+
+    if (isCritical) {
+        viewport.classList.add('critical-mode');
+        document.getElementById('critical-warn-msg').style.opacity = 1;
+        document.getElementById('hud-imu-stat').innerText = 'WARN: TILT';
+    } else {
+        viewport.classList.remove('critical-mode');
+        document.getElementById('critical-warn-msg').style.opacity = 0;
+        document.getElementById('hud-imu-stat').innerText = 'NOMINAL';
+    }
+
+    // Horizon
+    const pitchY = pitch * 3; 
+    document.getElementById('horizon-group').setAttribute('transform', `translate(300, 300) rotate(${-roll}) translate(0, ${pitchY})`);
+    
+    document.getElementById('ret-pitch').innerText = `P: ${(pitch>0?'+':'')}${pitch.toFixed(1)}°`;
+    document.getElementById('ret-roll').innerText = `R: ${(roll>0?'+':'')}${roll.toFixed(1)}°`;
+
+    // Speed & PWR (Battery simulation or system ok)
+    const speedDash = Math.min((speed / 50) * 188, 188); 
+    document.getElementById('arc-speed').setAttribute('stroke-dasharray', `${speedDash} 400`);
+    document.getElementById('center-spd').innerText = speed.toFixed(1);
+
+    // Compass
+    const fullCircleWidth = 12 * 40; 
+    const yawOffset = -fullCircleWidth - ((yaw / 360) * fullCircleWidth);
+    document.getElementById('compass-tape').setAttribute('transform', `translate(${yawOffset}, 0)`);
+
+    // Motors (Left / Right Tracks)
+    const motL = Math.abs(data.motors.left * 100);
+    const motR = Math.abs(data.motors.right * 100);
+    
+    document.getElementById('hud-bar-mot-l').style.width = `${motL}%`; 
+    document.getElementById('hud-mot-l').innerText = `${motL.toFixed(0)}%`;
+    document.getElementById('hud-bar-mot-r').style.width = `${motR}%`; 
+    document.getElementById('hud-mot-r').innerText = `${motR.toFixed(0)}%`;
+
+    // Accelerometer
+    document.getElementById('hud-acc-x').innerText = data.accel.x.toFixed(2);
+    document.getElementById('hud-acc-y').innerText = data.accel.y.toFixed(2);
+    document.getElementById('hud-acc-z').innerText = data.accel.z.toFixed(2);
+    
+    // Slope Bar
+    document.getElementById('hud-slope-val').innerText = `${maxSlope.toFixed(0)}°`;
+    document.getElementById('hud-bar-slope').style.width = `${Math.min((maxSlope/45)*100, 100)}%`;
+
+    // System Status & GPS
+    document.getElementById('hud-sys-state').innerText = data.armed ? "ARMED" : "DISARMED";
+    document.getElementById('hud-sys-state').style.color = data.armed ? "var(--danger)" : "var(--primary)";
+    
+    if (data.gps.valid) {
+        document.getElementById('hud-gps-lat').innerText = data.gps.lat.toFixed(6) + "°";
+        document.getElementById('hud-gps-lng').innerText = data.gps.lng.toFixed(6) + "°";
+        document.getElementById('hud-gps-alt').innerText = data.gps.alt.toFixed(0) + " m";
+        document.getElementById('hud-gps-sats').innerText = data.gps.satellites;
+        document.getElementById('hud-gps-hdop').innerText = data.gps.hdop.toFixed(1);
+        document.getElementById('hud-gps-crs').innerText = data.gps.course.toFixed(0) + "°";
+        document.getElementById('hud-gps-spd').innerText = data.gps.speed.toFixed(1);
+        
+        if (data.gps.time) {
+            const timeParts = data.gps.time.split('T');
+            if (timeParts[1]) document.getElementById('hud-sys-time-local').innerText = timeParts[1].split('Z')[0] + " Z";
+        }
+    }
+
+    // IMU Temp
+    document.getElementById('hud-imu-temp').innerText = data.temperature.toFixed(1) + "°C";
+
+    // Uptime
+    const uptimeMs = Date.now() - hudBootTime;
+    const hrs = String(Math.floor(uptimeMs / 3600000)).padStart(2, '0');
+    const mins = String(Math.floor((uptimeMs % 3600000) / 60000)).padStart(2, '0');
+    const secs = String(Math.floor((uptimeMs % 60000) / 1000)).padStart(2, '0');
+    document.getElementById('hud-sys-uptime').innerText = `${hrs}:${mins}:${secs}`;
 }
 
 // Initial load
