@@ -184,21 +184,21 @@ const char index_html[] PROGMEM = R"rawliteral(
                                     <g id="compass-tape"></g>
                                 </g>
 
-                                <g transform="translate(300, 125)">
+                                <g transform="translate(300, 100)">
                                     <text x="-25" y="0" class="center-text-readout" font-size="13" id="ret-pitch" text-anchor="end">P: 0°</text>
                                     <circle cx="0" cy="-4" r="1.5" fill="var(--primary-dim)" style="transition: fill 0.2s;" />
                                     <text x="25" y="0" class="center-text-readout" font-size="13" id="ret-roll" text-anchor="start">R: 0°</text>
                                 </g>
 
-                                <path d="M 180 300 A 120 120 0 0 1 200 180" class="stroke-dim" stroke-width="6" />
-                                <path d="M 180 300 A 120 120 0 0 1 200 180" class="stroke-main" stroke-width="6" id="arc-speed" stroke-dasharray="0 400" />
-                                <text x="160" y="240" class="center-text-readout" id="center-spd" text-anchor="end">0.0</text>
-                                <text x="160" y="255" class="center-text-label" text-anchor="end">KM/H</text>
+                                <path d="M 150 400 A 141.42 141.42 0 0 1 150 200" class="stroke-dim" stroke-width="6" />
+                                <path d="M 150 400 A 141.42 141.42 0 0 1 150 200" class="stroke-main" stroke-width="6" id="arc-speed" stroke-dasharray="0 450" />
+                                <text x="105" y="296" class="center-text-readout" id="center-spd" text-anchor="end">0.0</text>
+                                <text x="105" y="312" class="center-text-label" text-anchor="end">KM/H</text>
 
-                                <path d="M 420 300 A 120 120 0 0 0 400 180" class="stroke-dim" stroke-width="6" />
-                                <path d="M 420 300 A 120 120 0 0 0 400 180" stroke="var(--warning)" fill="none" stroke-width="6" id="arc-batt" stroke-dasharray="188 400" />
-                                <text x="440" y="240" class="center-text-readout" style="fill: var(--warning)" id="center-bat" text-anchor="start">PWR</text>
-                                <text x="440" y="255" class="center-text-label" text-anchor="start">SYSTEM</text>
+                                <path d="M 450 400 A 141.42 141.42 0 0 0 450 200" class="stroke-dim" stroke-width="6" />
+                                <path d="M 450 400 A 141.42 141.42 0 0 0 450 200" stroke="var(--warning)" fill="none" stroke-width="6" id="arc-batt" stroke-dasharray="222 450" />
+                                <text x="495" y="296" class="center-text-readout" style="fill: var(--warning)" id="center-bat" text-anchor="start">PWR</text>
+                                <text x="495" y="312" class="center-text-label" text-anchor="start">SYSTEM</text>
 
                                 <g transform="translate(300, 300)">
                                     <circle cx="0" cy="0" r="3" fill="var(--danger)" />
@@ -1546,7 +1546,7 @@ function updateHUD(data) {
     document.getElementById('ret-roll').innerText = `R: ${(roll>0?'+':'')}${roll.toFixed(1)}°`;
 
     // Speed & PWR (Battery simulation or system ok)
-    const speedDash = Math.min((speed / 50) * 188, 188); 
+    const speedDash = Math.min((speed / 50) * 222, 222); 
     document.getElementById('arc-speed').setAttribute('stroke-dasharray', `${speedDash} 400`);
     document.getElementById('center-spd').innerText = speed.toFixed(1);
 
