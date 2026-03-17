@@ -814,7 +814,7 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
     /* HUD Responsiveness - Mobile specific */
     #hud-tab { 
         min-height: 550px; 
-        height: 80vh; 
+        height: 70vh; 
         margin-left: -12px; 
         margin-right: -12px; 
         border-radius: 0;
@@ -894,8 +894,8 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
     }
     
     .svg-center { 
-        width: clamp(260px, 70vmin, 480px) !important;
-        height: clamp(260px, 70vmin, 480px) !important;
+        width: clamp(280px, 78vmin, 500px) !important;
+        height: clamp(280px, 78vmin, 500px) !important;
         max-width: none;
         max-height: none;
     }
