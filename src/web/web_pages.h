@@ -192,13 +192,13 @@ const char index_html[] PROGMEM = R"rawliteral(
 
                                 <path d="M 150 400 A 141.42 141.42 0 0 1 150 200" class="stroke-dim" stroke-width="6" />
                                 <path d="M 150 400 A 141.42 141.42 0 0 1 150 200" class="stroke-main" stroke-width="6" id="arc-speed" stroke-dasharray="0 450" />
-                                <text x="105" y="296" class="center-text-readout" id="center-spd" text-anchor="end">0.0</text>
-                                <text x="105" y="312" class="center-text-label" text-anchor="end">KM/H</text>
+                                <text x="90" y="296" class="center-text-readout" id="center-spd" text-anchor="end">0.0</text>
+                                <text x="90" y="312" class="center-text-label" text-anchor="end">KM/H</text>
 
                                 <path d="M 450 400 A 141.42 141.42 0 0 0 450 200" class="stroke-dim" stroke-width="6" />
                                 <path d="M 450 400 A 141.42 141.42 0 0 0 450 200" stroke="var(--warning)" fill="none" stroke-width="6" id="arc-batt" stroke-dasharray="222 450" />
-                                <text x="495" y="296" class="center-text-readout" style="fill: var(--warning)" id="center-bat" text-anchor="start">PWR</text>
-                                <text x="495" y="312" class="center-text-label" text-anchor="start">SYSTEM</text>
+                                <text x="510" y="296" class="center-text-readout" style="fill: var(--warning)" id="center-bat" text-anchor="start">PWR</text>
+                                <text x="510" y="312" class="center-text-label" text-anchor="start">SYSTEM</text>
 
                                 <g transform="translate(300, 300)">
                                     <circle cx="0" cy="0" r="3" fill="var(--danger)" />
@@ -644,8 +644,8 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
     --text-main: var(--text-main);
     --text-dim: rgba(224, 248, 245, 0.65);
     --font-mono: 'Share Tech Mono', 'Courier New', monospace;
-    --glow: 0 0 10px var(--primary);
-    --fpv-aberration: 1.5px 0px 1px rgba(255,0,0,0.6), -1.5px 0px 1px rgba(0,255,255,0.6), 0 0 4px rgba(0,0,0,0.9);
+    --glow: 0 0 4px var(--primary);
+    --fpv-aberration: 0.6px 0px 0px rgba(255,0,0,0.3), -0.6px 0px 0px rgba(0,255,255,0.3), 0 0 2px rgba(0,0,0,0.8);
 
     position: absolute;
     inset: 0;
@@ -749,8 +749,9 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
 .accel-item .data-value { font-size: 0.65rem; text-shadow: var(--fpv-aberration); }
 
 .status-badge {
-    display: inline-block; color: var(--danger); border: 1px solid var(--danger); background: rgba(0,0,0,0.5);
-    padding: 1px 4px; font-size: clamp(0.55rem, 0.65vw, 0.7rem); font-weight: bold; text-shadow: none; animation: pulse-danger 1.5s infinite;
+    display: inline-flex; align-items: center; line-height: 1;
+    color: var(--danger); border: 1px solid var(--danger); background: rgba(0,0,0,0.5);
+    padding: 2px 5px; font-size: clamp(0.55rem, 0.65vw, 0.7rem); font-weight: bold; text-shadow: none; animation: pulse-danger 1.5s infinite;
 }
 @keyframes pulse-danger { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 .push-bottom { margin-top: auto; }
@@ -1542,10 +1543,8 @@ function updateHUD(data) {
     const pitchY = pitch * 3; 
     document.getElementById('horizon-group').setAttribute('transform', `translate(300, 300) rotate(${-roll}) translate(0, ${pitchY})`);
     
-    document.getElementById('ret-pitch').innerText = `P: ${(pitch>0?'+':'')}${pitch.toFixed(1)}°`;
-    document.getElementById('ret-roll').innerText = `R: ${(roll>0?'+':'')}${roll.toFixed(1)}°`;
-
-    // Speed & PWR (Battery simulation or system ok)
+    document.getElementById('ret-pitch').textContent = `P: ${(pitch>0?'+':'')}${pitch.toFixed(1)}°`;
+    document.getElementById('ret-roll').textContent = `R: ${(roll>0?'+':'')}${roll.toFixed(1)}°`;
     const speedDash = Math.min((speed / 50) * 222, 222); 
     document.getElementById('arc-speed').setAttribute('stroke-dasharray', `${speedDash} 400`);
     document.getElementById('center-spd').innerText = speed.toFixed(1);
