@@ -53,6 +53,19 @@ void webServerTask(void* pvParameters) {
     }
 }
 
+// Broadcast de dados via WebSocket a 20 Hz (50 ms) no Core 0.
+// Usa vTaskDelayUntil para periodicidade determinística, sem drift.
+// broadcastSensorData() faz try-lock no mutex (0 ticks) — nunca bloqueia o Core 1.
+void wsBroadcastTask(void* pvParameters) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(50); // 20 Hz
+
+    while (true) {
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        webServer.broadcastSensorData();
+    }
+}
+
 void setup() {
     Serial.begin(115200);
     delay(1000);
@@ -113,10 +126,11 @@ void setup() {
     }
 
     // 5. Tasks do sistema.
-    xTaskCreatePinnedToCore(webServerTask,   "WebServerTask",  8192, NULL, 1, NULL, 0);
-    xTaskCreatePinnedToCore(tankControlTask, "TankControlTask", 8192, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(webServerTask,    "WebServerTask",   8192, NULL, 1, NULL, 0);
+    xTaskCreatePinnedToCore(wsBroadcastTask,  "WsBroadcastTask", 8192, NULL, 1, NULL, 0);  // Aumentado para 8KB (StaticJsonDocument na stack)
+    xTaskCreatePinnedToCore(tankControlTask,  "TankControlTask", 8192, NULL, 2, NULL, 1);
 
-    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Tasks iniciadas — sistema operacional");
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Tasks iniciadas — sistema operacional (WS broadcast 20 Hz)");
 }
 
 void loop() {

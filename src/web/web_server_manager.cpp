@@ -25,7 +25,7 @@ static uint32_t hw_sketch_size;
 static String hw_mac;
 
 WebServerManager::WebServerManager(const char* ssid, const char* password)
-    : ap_ssid(ssid), ap_password(password), server(80) {}
+    : ap_ssid(ssid), ap_password(password), server(80), ws("/ws") {}
 
 bool WebServerManager::begin() {
     if (Config::WIFI_MODE == 1 && Config::STA_SSID.length() > 0) {
@@ -72,10 +72,11 @@ bool WebServerManager::begin() {
     hw_sketch_size   = ESP.getSketchSize();
     hw_mac           = WiFi.macAddress();
 
+    setupWebSocket();
     setupRoutes();
 
     server.begin();
-    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Servidor Async iniciado na porta 80");
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Servidor Async iniciado na porta 80 (WebSocket em /ws)");
 
     return true;
 }
@@ -91,11 +92,11 @@ void WebServerManager::setupRoutes() {
     });
 
     server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(200, "text/css", style_css);
+        request->send_P(200, "text/css", style_css);
     });
 
     server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(200, "application/javascript", script_js);
+        request->send_P(200, "application/javascript", script_js);
     });
 
     // Health check
@@ -352,4 +353,168 @@ void WebServerManager::setupRoutes() {
     server.onNotFound([](AsyncWebServerRequest *request){
         request->send(404, "text/plain", "Not Found");
     });
+}
+
+// ─── WebSocket ───────────────────────────────────────────────────────────────
+
+void WebServerManager::setupWebSocket() {
+    ws.onEvent([this](AsyncWebSocket *server, AsyncWebSocketClient *client,
+                      AwsEventType type, void *arg, uint8_t *data, size_t len) {
+        onWsEvent(server, client, type, arg, data, len);
+    });
+    server.addHandler(&ws);
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "WebSocket handler registrado em /ws");
+}
+
+void WebServerManager::onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client,
+                                  AwsEventType type, void *arg, uint8_t *data, size_t len) {
+    switch (type) {
+        case WS_EVT_CONNECT:
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO,
+                "WS cliente #%u conectado de %s", client->id(), client->remoteIP().toString().c_str());
+            break;
+
+        case WS_EVT_DISCONNECT:
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO,
+                "WS cliente #%u desconectado", client->id());
+            break;
+
+        case WS_EVT_DATA: {
+            // Mensagens do cliente → comandos leves (ex: calibrate)
+            AwsFrameInfo *info = (AwsFrameInfo*)arg;
+            if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
+                data[len] = 0; // null-terminate
+                String msg = (char*)data;
+
+                if (msg == "calibrate") {
+                    if (tankMutex != nullptr && xSemaphoreTake(tankMutex, 0) == pdTRUE) {
+                        tankController.calibrateImu();
+                        xSemaphoreGive(tankMutex);
+                        client->text("{\"t\":\"ack\",\"cmd\":\"calibrate\",\"s\":\"ok\"}");
+                    } else {
+                        client->text("{\"t\":\"ack\",\"cmd\":\"calibrate\",\"s\":\"busy\"}");
+                    }
+                }
+            }
+            break;
+        }
+
+        case WS_EVT_PONG:
+        case WS_EVT_ERROR:
+            break;
+    }
+}
+
+size_t WebServerManager::wsClientCount() const {
+    return ws.count();
+}
+
+/**
+ * broadcastSensorData() — chamado pela wsBroadcastTask (Core 0) a cada 50 ms (20 Hz).
+ *
+ * Otimizações para evitar memory corruption (Guru Meditation Error):
+ *   - Usa StaticJsonDocument (alocado na stack, não heap)
+ *   - Buffer pré-alocado para serialização
+ *   - Sem String temporária que causa move semantics perigosa
+ */
+
+// Buffer/Document pré-alocados (uma vez na memória)
+static StaticJsonDocument<384> wsJsonDoc;
+static char wsPayloadBuffer[512];
+
+void WebServerManager::broadcastSensorData() {
+    ws.cleanupClients(2);
+    if (ws.count() == 0) return;
+    if (tankMutex == nullptr) return;
+
+    // ── 1. Snapshot atômico ──
+    Types::ImuData       imu;
+    Types::GpsData       gps;
+    Types::CompassData   compass;
+    Types::MotorCommands motors;
+    Types::ChannelData   channels;
+    bool                 armed = false;
+
+    if (xSemaphoreTake(tankMutex, 0) != pdTRUE) {
+        return;
+    }
+
+    imu      = tankController.getImuData();
+    gps      = tankController.getGpsData();
+    compass  = tankController.getCompassData();
+    motors   = tankController.getMotorCommands();
+    channels = tankController.getChannelData();
+    armed    = tankController.isSystemArmed();
+
+    xSemaphoreGive(tankMutex);
+
+    // ── 2. Serialização JSON com StaticJsonDocument (stack-based) ──
+    wsJsonDoc.clear(); // Reutiliza documento estático
+    wsJsonDoc["t"] = "sensor";
+
+    JsonObject d = wsJsonDoc["d"].to<JsonObject>();
+
+    // IMU
+    JsonObject jimu = d["imu"].to<JsonObject>();
+    jimu["v"]  = imu.isValid;
+    jimu["r"]  = imu.roll;
+    jimu["p"]  = imu.pitch;
+    jimu["y"]  = imu.yaw;
+    jimu["t"]  = imu.temperature;
+    jimu["ax"] = imu.accelX;
+    jimu["ay"] = imu.accelY;
+    jimu["az"] = imu.accelZ;
+    jimu["gx"] = imu.gyroX;
+    jimu["gy"] = imu.gyroY;
+    jimu["gz"] = imu.gyroZ;
+
+    // GPS
+    JsonObject jgps = d["gps"].to<JsonObject>();
+    jgps["v"] = gps.isValid;
+    if (gps.isValid) {
+        jgps["la"] = gps.latitude;
+        jgps["ln"] = gps.longitude;
+        jgps["al"] = gps.altitude;
+        jgps["sp"] = gps.speed;
+        jgps["cr"] = gps.course;
+        jgps["sa"] = gps.satellites;
+        jgps["hd"] = gps.hdop;
+        jgps["tm"] = gps.dateTime;
+    }
+
+    // Compass
+    JsonObject jcmp = d["cmp"].to<JsonObject>();
+    jcmp["v"] = compass.isValid;
+    jcmp["h"] = compass.heading;
+    jcmp["x"] = compass.x;
+    jcmp["y"] = compass.y;
+    jcmp["z"] = compass.z;
+
+    // Motors
+    JsonObject jmot = d["mot"].to<JsonObject>();
+    jmot["l"] = motors.left;
+    jmot["r"] = motors.right;
+
+    // RC Channels
+    JsonArray jch = d["ch"].to<JsonArray>();
+    jch.add(channels.steering);
+    jch.add(channels.aux[0]);
+    jch.add(channels.throttle);
+    jch.add(channels.aux[1]);
+    jch.add(channels.aux[2]);
+    jch.add(channels.aux[3]);
+    jch.add(channels.aux[4]);
+    jch.add(channels.aux[5]);
+    jch.add(channels.aux[6]);
+    jch.add(channels.aux[7]);
+
+    d["cv"] = channels.isValid;
+    d["arm"] = armed;
+    d["up"] = millis();
+
+    // ── 3. Serializar para buffer pré-alocado (evita String malloc) ──
+    size_t len = serializeJson(wsJsonDoc, wsPayloadBuffer, sizeof(wsPayloadBuffer));
+    if (len > 0 && len < sizeof(wsPayloadBuffer)) {
+        ws.textAll(wsPayloadBuffer, len);
+    }
 }

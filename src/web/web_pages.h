@@ -197,7 +197,7 @@ const char index_html[] PROGMEM = R"rawliteral(
 
                                 <path d="M 450 400 A 141.42 141.42 0 0 0 450 200" class="stroke-dim" stroke-width="6" />
                                 <path d="M 450 400 A 141.42 141.42 0 0 0 450 200" stroke="var(--warning)" fill="none" stroke-width="6" id="arc-batt" stroke-dasharray="222 450" />
-                                <text x="510" y="296" class="center-text-readout" style="fill: var(--warning)" id="center-bat" text-anchor="start">PWR</text>
+                                <text x="510" y="296" class="center-text-readout" style="fill: var(--warning);" id="center-bat" text-anchor="start">PWR</text>
                                 <text x="510" y="312" class="center-text-label" text-anchor="start">SYSTEM</text>
 
                                 <g transform="translate(300, 300)">
@@ -644,7 +644,7 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
     --text-main: var(--text-main);
     --text-dim: rgba(224, 248, 245, 0.65);
     --font-mono: 'Share Tech Mono', 'Courier New', monospace;
-    --glow: 0 0 4px var(--primary);
+    --glow: 0 0 6px var(--primary);
     --fpv-aberration: 0.6px 0px 0px rgba(255,0,0,0.3), -0.6px 0px 0px rgba(0,255,255,0.3), 0 0 2px rgba(0,0,0,0.8);
 
     position: absolute;
@@ -704,6 +704,7 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
         filter: drop-shadow(var(--glow)); 
         transition: filter 0.2s;
     }
+    
 
 .stroke-main { stroke: var(--primary); fill: none; stroke-width: 1.5; transition: stroke 0.2s; }
 .stroke-dim { stroke: var(--primary-dim); fill: none; stroke-width: 1; transition: stroke 0.2s; }
@@ -749,9 +750,14 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
 .accel-item .data-value { font-size: 0.65rem; text-shadow: var(--fpv-aberration); }
 
 .status-badge {
-    display: inline-flex; align-items: center; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+    line-height: 1; height: 1.3em; min-width: fit-content;
     color: var(--danger); border: 1px solid var(--danger); background: rgba(0,0,0,0.5);
-    padding: 2px 5px; font-size: clamp(0.55rem, 0.65vw, 0.7rem); font-weight: bold; text-shadow: none; animation: pulse-danger 1.5s infinite;
+    padding: 1px 6px; font-size: clamp(0.55rem, 0.65vw, 0.7rem); font-weight: bold; text-shadow: none; animation: pulse-danger 1.5s infinite;
+}
+.status-badge.disarmed {
+    color: var(--primary); border-color: var(--primary);
+    animation: none;
 }
 @keyframes pulse-danger { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 .push-bottom { margin-top: auto; }
@@ -967,6 +973,253 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
 )rawliteral";
 
 const char script_js[] PROGMEM = R"rawliteral(
+// ─── WebSocket Real-Time Data Layer ──────────────────────────────────────────
+// Substitui o polling HTTP para sensors/channels/HUD por push a 20 Hz via WS.
+// Mantém HTTP como fallback para dados de baixa frequência (sysinfo, settings, logs).
+
+let ws = null;
+let wsConnected = false;
+let wsReconnectTimer = null;
+let wsLastMessageTime = 0;
+let sensorFailCount = 0;
+
+function connectWebSocket() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+
+    const proto = (location.protocol === 'https:') ? 'wss' : 'ws';
+    ws = new WebSocket(proto + '://' + location.host + '/ws');
+
+    ws.onopen = function() {
+        wsConnected = true;
+        clearTimeout(wsReconnectTimer);
+        updateConnectionStatus(true);
+        console.log('[WS] Connected');
+    };
+
+    ws.onmessage = function(event) {
+        wsLastMessageTime = Date.now();
+        try {
+            const msg = JSON.parse(event.data);
+            if (msg.t === 'sensor') {
+                handleWsSensorData(msg.d);
+            } else if (msg.t === 'ack') {
+                handleWsAck(msg);
+            }
+        } catch(e) {
+            console.error('[WS] Parse error:', e);
+        }
+    };
+
+    ws.onclose = function() {
+        wsConnected = false;
+        updateConnectionStatus(false);
+        console.log('[WS] Disconnected — reconnecting in 2s');
+        wsReconnectTimer = setTimeout(connectWebSocket, 2000);
+    };
+
+    ws.onerror = function() {
+        ws.close();
+    };
+}
+
+function updateConnectionStatus(connected) {
+    const el = document.getElementById('connectionStatus');
+    const linkEl = document.getElementById('hud-sys-link');
+    if (connected) {
+        el.innerText = 'Connected';
+        el.style.borderColor = 'var(--accent-color)';
+        el.style.color = 'var(--accent-color)';
+        el.style.backgroundColor = 'var(--accent-bg-glow)';
+        if (linkEl) linkEl.innerText = 'OK';
+    } else {
+        el.innerText = 'Disconnected';
+        el.style.borderColor = 'var(--watermelon)';
+        el.style.color = 'var(--watermelon)';
+        el.style.backgroundColor = 'rgba(228, 37, 72, 0.1)';
+        if (linkEl) linkEl.innerText = 'LOST';
+    }
+}
+
+// Traduz o payload compacto do WS para o formato que as funções de UI já esperam,
+// e distribui os dados para todas as abas simultaneamente (sem polling por aba).
+function handleWsSensorData(d) {
+    sensorFailCount = 0;
+
+    // ── Traduz para o formato legado usado pelas funções de UI ──
+    const sensorData = {
+        valid: d.imu.v,
+        temperature: parseFloat(d.imu.t),
+        accel: { x: parseFloat(d.imu.ax), y: parseFloat(d.imu.ay), z: parseFloat(d.imu.az) },
+        gyro:  { x: parseFloat(d.imu.gx), y: parseFloat(d.imu.gy), z: parseFloat(d.imu.gz) },
+        angles: { roll: parseFloat(d.imu.r), pitch: parseFloat(d.imu.p), yaw: parseFloat(d.imu.y) },
+        gps: {
+            valid: d.gps.v,
+            lat: parseFloat(d.gps.la || 0), lng: parseFloat(d.gps.ln || 0),
+            alt: parseFloat(d.gps.al || 0), speed: parseFloat(d.gps.sp || 0),
+            course: parseFloat(d.gps.cr || 0), satellites: d.gps.sa || 0,
+            hdop: parseFloat(d.gps.hd || 0), time: d.gps.tm || ''
+        },
+        compass: {
+            valid: d.cmp.v,
+            heading: parseFloat(d.cmp.h), x: parseFloat(d.cmp.x),
+            y: parseFloat(d.cmp.y), z: parseFloat(d.cmp.z)
+        },
+        motors: { left: parseFloat(d.mot.l), right: parseFloat(d.mot.r) },
+        armed: d.arm
+    };
+
+    const channelData = { raw_channels: d.ch, valid: d.cv };
+
+    // ── Atualiza Sensors tab ──
+    if (document.getElementById('sensors').classList.contains('active')) {
+        updateSensorsFromData(sensorData);
+    }
+
+    // ── Atualiza Radio tab ──
+    if (document.getElementById('radio').classList.contains('active')) {
+        updateRadioFromData(channelData);
+    }
+
+    // ── Atualiza HUD tab (prioridade máxima — 20Hz) ──
+    if (document.getElementById('hud-tab').classList.contains('active')) {
+        updateHUD(sensorData);
+    }
+
+    // ── Atualiza Armed status na Home (leve) ──
+    const armedToggle = document.getElementById('armed-toggle');
+    if (armedToggle && armedToggle.checked !== d.arm) {
+        armedToggle.checked = d.arm;
+        updateArmedStyle(d.arm);
+    }
+
+    // ── Atualiza uptime na Home se visível ──
+    if (document.getElementById('home').classList.contains('active') && d.up) {
+        const uptimeEl = document.querySelector('#sysinfo-list .value-uptime');
+        if (uptimeEl) uptimeEl.innerText = formatTime(d.up);
+    }
+}
+
+function handleWsAck(msg) {
+    if (msg.cmd === 'calibrate') {
+        const btn = document.getElementById('btn-calibrate');
+        if (msg.s === 'ok') {
+            setTimeout(function() {
+                btn.innerText = 'CALIBRATION COMPLETE';
+                btn.style.color = 'var(--black)';
+                btn.style.background = 'var(--neon-chartreuse)';
+                setTimeout(function() {
+                    btn.innerText = 'CALIBRATE IMU (ZERO YAW)';
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.color = 'var(--accent-color)';
+                    btn.style.background = 'transparent';
+                }, 3000);
+            }, 2500);
+        } else {
+            btn.innerText = 'BUSY - RETRY';
+            setTimeout(function() {
+                btn.innerText = 'CALIBRATE IMU (ZERO YAW)';
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            }, 2000);
+        }
+    }
+}
+
+// Atualiza a aba SENSORS a partir dos dados traduzidos
+function updateSensorsFromData(d) {
+    const offline = document.getElementById('imu-offline');
+    if (!d.valid) {
+        sensorFailCount++;
+        if (sensorFailCount > 3 && offline) offline.style.display = 'block';
+    } else {
+        sensorFailCount = 0;
+        if (offline) offline.style.display = 'none';
+
+        const fmt = function(v) { return (v >= 0 ? '+' : '') + v.toFixed(3); };
+
+        document.getElementById('imu-roll').innerText  = fmt(d.angles.roll);
+        document.getElementById('imu-pitch').innerText = fmt(d.angles.pitch);
+        document.getElementById('imu-yaw').innerText   = fmt(d.angles.yaw);
+        document.getElementById('imu-temp').innerText  = d.temperature.toFixed(1);
+
+        document.getElementById('accel-x').innerText = fmt(d.accel.x);
+        document.getElementById('accel-y').innerText = fmt(d.accel.y);
+        document.getElementById('accel-z').innerText = fmt(d.accel.z);
+
+        document.getElementById('gyro-x').innerText = fmt(d.gyro.x);
+        document.getElementById('gyro-y').innerText = fmt(d.gyro.y);
+        document.getElementById('gyro-z').innerText = fmt(d.gyro.z);
+    }
+
+    if (d.compass) {
+        if (d.compass.valid) {
+            document.getElementById('comp-heading').innerText = d.compass.heading.toFixed(1);
+            document.getElementById('comp-x').innerText = d.compass.x.toFixed(2);
+            document.getElementById('comp-y').innerText = d.compass.y.toFixed(2);
+            document.getElementById('comp-z').innerText = d.compass.z.toFixed(2);
+        } else {
+            document.getElementById('comp-heading').innerText = '--';
+            document.getElementById('comp-x').innerText = '--';
+            document.getElementById('comp-y').innerText = '--';
+            document.getElementById('comp-z').innerText = '--';
+        }
+    }
+
+    if (d.gps) {
+        const gpsStatus = document.getElementById('gps-status');
+        if (d.gps.valid) {
+            gpsStatus.innerText = '3D FIX';
+            gpsStatus.style.background = 'var(--accent-bg-glow)';
+            gpsStatus.style.color = 'var(--accent-color)';
+            document.getElementById('gps-lat').innerText = d.gps.lat.toFixed(6);
+            document.getElementById('gps-lng').innerText = d.gps.lng.toFixed(6);
+            document.getElementById('gps-alt').innerText = d.gps.alt.toFixed(1);
+            document.getElementById('gps-sats').innerText = d.gps.satellites;
+            document.getElementById('gps-speed').innerText = d.gps.speed.toFixed(1);
+            document.getElementById('gps-course').innerText = d.gps.course.toFixed(1);
+            document.getElementById('gps-hdop').innerText = d.gps.hdop.toFixed(2);
+            if (d.gps.time) {
+                var timeStr = d.gps.time.split('T');
+                document.getElementById('gps-time').innerText = (timeStr.length === 2) ? timeStr[1].split('-')[0] : d.gps.time;
+            }
+        } else {
+            gpsStatus.innerText = 'NO FIX';
+            gpsStatus.style.background = 'rgba(228, 37, 72, 0.1)';
+            gpsStatus.style.color = 'var(--watermelon)';
+            document.getElementById('gps-lat').innerText = '--';
+            document.getElementById('gps-lng').innerText = '--';
+            document.getElementById('gps-alt').innerText = '--';
+            document.getElementById('gps-speed').innerText = '--';
+            document.getElementById('gps-course').innerText = '--';
+            document.getElementById('gps-hdop').innerText = '--';
+            document.getElementById('gps-time').innerText = '--';
+            if (d.gps.satellites !== undefined) document.getElementById('gps-sats').innerText = d.gps.satellites;
+        }
+    }
+}
+
+// Atualiza a aba RADIO a partir dos dados traduzidos
+function updateRadioFromData(d) {
+    if (!d.raw_channels || !Array.isArray(d.raw_channels)) return;
+
+    const container = document.getElementById('all-channels');
+    if (container.innerHTML === 'Loading...' || container.innerHTML === '') {
+        container.innerHTML = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">' +
+            d.raw_channels.map(function(val, i) {
+                return '<div class="channel-group" style="margin-bottom: 0;"><label>CH ' + (i+1) + '</label>' +
+                    '<div class="channel-row"><div class="progress-bar"><div id="ch-' + i + '" class="fill" style="width: 50%"></div></div>' +
+                    '<span class="val" id="val-' + i + '">' + val + '</span></div></div>';
+            }).join('') + '</div>';
+    }
+
+    d.raw_channels.forEach(function(val, i) {
+        updateChannel('' + i, val);
+    });
+}
+
+// ─── Funções originais (mantidas para fallback HTTP e abas de baixa frequência) ──
+
 function updateSysInfo() {
     fetch('/api/sysinfo')
         .then(response => response.json())
@@ -1209,33 +1462,39 @@ function calibrateIMU() {
     btn.disabled = true;
     btn.style.opacity = "0.5";
     
-    fetch('/api/calibrate-imu', { method: 'POST' })
-    .then(r => r.json())
-    .then(d => {
-        // A calibração assíncrona leva ~2.5s no backend
-        setTimeout(() => {
-            btn.innerText = "CALIBRATION COMPLETE";
-            btn.style.color = "var(--black)";
-            btn.style.background = "var(--neon-chartreuse)";
-            
+    // Envia via WebSocket se disponível, caso contrário fallback HTTP
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send('calibrate');
+        // handleWsAck() responderá com sucesso/falha
+    } else {
+        // Fallback HTTP se WS não estiver disponível
+        fetch('/api/calibrate-imu', { method: 'POST' })
+        .then(r => r.json())
+        .then(d => {
+            setTimeout(() => {
+                btn.innerText = "CALIBRATION COMPLETE";
+                btn.style.color = "var(--black)";
+                btn.style.background = "var(--neon-chartreuse)";
+                
+                setTimeout(() => {
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                    btn.style.opacity = "1";
+                    btn.style.color = "var(--accent-color)";
+                    btn.style.background = "transparent";
+                }, 3000);
+            }, 2500);
+        })
+        .catch(err => {
+            console.error(err);
+            btn.innerText = "ERROR";
             setTimeout(() => {
                 btn.innerText = originalText;
                 btn.disabled = false;
                 btn.style.opacity = "1";
-                btn.style.color = "var(--accent-color)";
-                btn.style.background = "transparent";
-            }, 3000);
-        }, 2500);
-    })
-    .catch(err => {
-        console.error(err);
-        btn.innerText = "ERROR";
-        setTimeout(() => {
-            btn.innerText = originalText;
-            btn.disabled = false;
-            btn.style.opacity = "1";
-        }, 2000);
-    });
+            }, 2000);
+        });
+    }
 }
 
 function toggleArmed() {
@@ -1264,8 +1523,6 @@ function updateArmedStyle(isArmed) {
         label.style.color = "var(--text-muted)";
     }
 }
-
-let sensorFailCount = 0;
 
 function updateSensors() {
     fetch('/api/sensors')
@@ -1392,39 +1649,23 @@ let pollingInterval;
 function startPolling() {
     if(pollingInterval) clearInterval(pollingInterval);
     
-    let rate = 1000; // Padrão: 1 segundo
-    
-    // Se estiver no rádio ou sensores, pode precisar de atualização mais rápida
-    if(document.getElementById('radio').classList.contains('active') || 
-       document.getElementById('sensors').classList.contains('active')) {
-        rate = 500;
-    }
+    // Com WebSocket, não precisamos poll sensors/channels — eles já vêm via WS a 20Hz
+    // Mantemos polling apenas para dados de baixa frequência (sysinfo, logs)
     
     pollingInterval = setInterval(() => {
         if(document.getElementById('home').classList.contains('active')) {
             updateSysInfo();
         }
-        if(document.getElementById('radio').classList.contains('active')) {
-            updateRadio();
-        }
-        if(document.getElementById('sensors').classList.contains('active')) {
-            updateSensors();
-        }
-        if(document.getElementById('hud-tab').classList.contains('active')) {
-            fetch('/api/sensors')
-            .then(r => r.json())
-            .then(d => updateHUD(d))
-            .catch(console.error);
-        }
-        // Logs são atualizados mais rápido e independentemente se na aba config
-    }, rate);
+        // Radio, Sensors e HUD agora são atualizados via WebSocket (20 Hz push)
+        // Polling HTTP é mantido apenas como fallback se WS falhar
+    }, 5000); // Menos frequente para dados estáticos
 
-    // Loop de logs roda independente pra tempo real, a 500ms
+    // Loop de logs roda independente, a 1s
     setInterval(() => {
         if(document.getElementById('config').classList.contains('active')) {
             updateLogs();
         }
-    }, 500);
+    }, 1000);
 }
 
 function openTab(tabName) {
@@ -1555,13 +1796,18 @@ function updateHUD(data) {
     document.getElementById('compass-tape').setAttribute('transform', `translate(${yawOffset}, 0)`);
 
     // Motors (Left / Right Tracks)
-    const motL = Math.abs(data.motors.left * 100);
-    const motR = Math.abs(data.motors.right * 100);
+    const motL = Math.abs((data.motors && data.motors.left !== undefined ? data.motors.left : 0) * 100);
+    const motR = Math.abs((data.motors && data.motors.right !== undefined ? data.motors.right : 0) * 100);
     
-    document.getElementById('hud-bar-mot-l').style.width = `${motL}%`; 
-    document.getElementById('hud-mot-l').innerText = `${motL.toFixed(0)}%`;
-    document.getElementById('hud-bar-mot-r').style.width = `${motR}%`; 
-    document.getElementById('hud-mot-r').innerText = `${motR.toFixed(0)}%`;
+    const barL = document.getElementById('hud-bar-mot-l');
+    const valL = document.getElementById('hud-mot-l');
+    const barR = document.getElementById('hud-bar-mot-r');
+    const valR = document.getElementById('hud-mot-r');
+    
+    if (barL) barL.style.width = `${motL}%`;
+    if (valL) valL.innerText = `${motL.toFixed(0)}%`;
+    if (barR) barR.style.width = `${motR}%`;
+    if (valR) valR.innerText = `${motR.toFixed(0)}%`;
 
     // Accelerometer
     document.getElementById('hud-acc-x').innerText = data.accel.x.toFixed(2);
@@ -1573,8 +1819,11 @@ function updateHUD(data) {
     document.getElementById('hud-bar-slope').style.width = `${Math.min((maxSlope/45)*100, 100)}%`;
 
     // System Status & GPS
-    document.getElementById('hud-sys-state').innerText = data.armed ? "ARMED" : "DISARMED";
-    document.getElementById('hud-sys-state').style.color = data.armed ? "var(--danger)" : "var(--primary)";
+    const statusBadge = document.getElementById('hud-sys-state');
+    statusBadge.innerText = data.armed ? "ARMED" : "DISARMED";
+    statusBadge.style.color = data.armed ? "var(--danger)" : "var(--primary)";
+    statusBadge.classList.remove('armed', 'disarmed');
+    statusBadge.classList.add(data.armed ? 'armed' : 'disarmed');
     
     if (data.gps.valid) {
         document.getElementById('hud-gps-lat').innerText = data.gps.lat.toFixed(6) + "°";
@@ -1607,6 +1856,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSysInfo();
     loadSettings();
     startPolling();
+    connectWebSocket(); // Inicia conexão push realtime via WebSocket
 });
 )rawliteral";
 
