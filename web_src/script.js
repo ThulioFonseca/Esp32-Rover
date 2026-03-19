@@ -98,7 +98,6 @@ function connectWebSocket() {
         wsConnected = true;
         clearTimeout(wsReconnectTimer);
         updateConnectionStatus(true);
-        console.log('[WS] Connected');
     };
 
     ws.onmessage = function(event) {
@@ -117,7 +116,7 @@ function connectWebSocket() {
                     handleWsAck(msg);
                 }
             } catch(e) {
-                console.error('[WS] Parse error:', e);
+                // ignore malformed frames
             }
         }
     };
@@ -125,7 +124,6 @@ function connectWebSocket() {
     ws.onclose = function() {
         wsConnected = false;
         updateConnectionStatus(false);
-        console.log('[WS] Disconnected — reconnecting in 2s');
         wsReconnectTimer = setTimeout(connectWebSocket, 2000);
     };
 
@@ -275,20 +273,18 @@ function updateSensorsFromData(d) {
         sensorFailCount = 0;
         if (offline) offline.style.display = 'none';
 
-        const fmt = function(v) { return (v >= 0 ? '+' : '') + v.toFixed(3); };
-
-        if(DOM.imuRoll)  DOM.imuRoll.innerText  = fmt(d.angles.roll);
-        if(DOM.imuPitch) DOM.imuPitch.innerText = fmt(d.angles.pitch);
-        if(DOM.imuYaw)   DOM.imuYaw.innerText   = fmt(d.angles.yaw);
+        if(DOM.imuRoll)  DOM.imuRoll.innerText  = formatSensorValue(d.angles.roll);
+        if(DOM.imuPitch) DOM.imuPitch.innerText = formatSensorValue(d.angles.pitch);
+        if(DOM.imuYaw)   DOM.imuYaw.innerText   = formatSensorValue(d.angles.yaw);
         if(DOM.imuTemp)  DOM.imuTemp.innerText  = d.temperature.toFixed(1);
 
-        if(DOM.accelX) DOM.accelX.innerText = fmt(d.accel.x);
-        if(DOM.accelY) DOM.accelY.innerText = fmt(d.accel.y);
-        if(DOM.accelZ) DOM.accelZ.innerText = fmt(d.accel.z);
+        if(DOM.accelX) DOM.accelX.innerText = formatSensorValue(d.accel.x);
+        if(DOM.accelY) DOM.accelY.innerText = formatSensorValue(d.accel.y);
+        if(DOM.accelZ) DOM.accelZ.innerText = formatSensorValue(d.accel.z);
 
-        if(DOM.gyroX) DOM.gyroX.innerText = fmt(d.gyro.x);
-        if(DOM.gyroY) DOM.gyroY.innerText = fmt(d.gyro.y);
-        if(DOM.gyroZ) DOM.gyroZ.innerText = fmt(d.gyro.z);
+        if(DOM.gyroX) DOM.gyroX.innerText = formatSensorValue(d.gyro.x);
+        if(DOM.gyroY) DOM.gyroY.innerText = formatSensorValue(d.gyro.y);
+        if(DOM.gyroZ) DOM.gyroZ.innerText = formatSensorValue(d.gyro.z);
     }
 
     if (d.compass) {
@@ -402,7 +398,7 @@ function updateSysInfo() {
             }
             netList.innerHTML = netHTML;
         })
-        .catch(function(err) { console.error('Error fetching sysinfo:', err); });
+        .catch(function() {});
 }
 
 function loadSettings() {
@@ -436,7 +432,7 @@ function loadSettings() {
         }
         if(staSsid && d.sta_ssid) staSsid.value = d.sta_ssid;
     })
-    .catch(console.error);
+    .catch(function() {});
 }
 
 function toggleWifiFields() {
@@ -476,7 +472,7 @@ function saveNetworkSettings() {
             alert("Network settings saved. Rover is rebooting to apply changes. You may need to connect to the new network.");
         }
     })
-    .catch(console.error);
+    .catch(function() {});
 }
 
 function toggleTheme() {
@@ -540,7 +536,7 @@ function updateLogs() {
                 logConsole.scrollTop = logConsole.scrollHeight;
             }
         })
-        .catch(console.error);
+        .catch(function() {});
 }
 
 function clearSystemLogs() {
@@ -548,7 +544,7 @@ function clearSystemLogs() {
         .then(function() {
             document.getElementById('log-console').innerHTML = '<div style="color: #6a9955">Console limpo.</div>';
         })
-        .catch(console.error);
+        .catch(function() {});
 }
 
 function calibrateIMU() {
@@ -579,8 +575,7 @@ function calibrateIMU() {
                 }, 3000);
             }, 2500);
         })
-        .catch(function(err) {
-            console.error(err);
+        .catch(function() {
             btn.innerText = "ERROR";
             setTimeout(function() {
                 btn.innerText = originalText;
@@ -633,18 +628,24 @@ function formatTime(ms) {
     return hours + 'h ' + (minutes % 60) + 'm ' + (seconds % 60) + 's';
 }
 
-let pollingInterval;
+function formatSensorValue(v) {
+    return (v >= 0 ? '+' : '') + v.toFixed(3);
+}
+
+let sysinfoPollingInterval = null;
+let logsPollingInterval = null;
 
 function startPolling() {
-    if(pollingInterval) clearInterval(pollingInterval);
+    if(sysinfoPollingInterval) clearInterval(sysinfoPollingInterval);
+    if(logsPollingInterval) clearInterval(logsPollingInterval);
 
-    pollingInterval = setInterval(function() {
+    sysinfoPollingInterval = setInterval(function() {
         if(document.getElementById('home').classList.contains('active')) {
             updateSysInfo();
         }
     }, 5000);
 
-    setInterval(function() {
+    logsPollingInterval = setInterval(function() {
         if(document.getElementById('config').classList.contains('active')) {
             updateLogs();
         }

@@ -9,14 +9,6 @@ void DebugManager::initialize() {
   logf(LOG_LEVEL_INFO, "DebugManager inicializado");
 }
 
-void DebugManager::enableSerialOutput(bool enable) {
-  // Para fins de simplificacao e compatibilidade com a struct, vou delegar pra isEnabled ou lidar na memoria
-}
-
-bool DebugManager::isSerialOutputEnabled() const {
-  return true; // placeholder para a nova implementacao
-}
-
 void DebugManager::logf(LogLevel level, const char* format, ...) {
   char buf[256];
   va_list args;

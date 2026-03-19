@@ -38,8 +38,8 @@ void tankControlTask(void* pvParameters) {
         // Atualiza a sinalização visual (não obstrutiva, demora nanosegundos)
         statusLed.update();
 
-        // Timeout de 5 ms: se a web retiver o mutex, este ciclo é descartado sem travar o sistema.
-        if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+        // Se a web retiver o mutex, este ciclo é descartado sem travar o sistema.
+        if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(Config::TANK_MUTEX_TIMEOUT_MS)) == pdTRUE) {
             tankController.update();
             xSemaphoreGive(tankMutex);
         }
@@ -58,7 +58,7 @@ void webServerTask(void* pvParameters) {
 // broadcastSensorData() faz try-lock no mutex (0 ticks) — nunca bloqueia o Core 1.
 void wsBroadcastTask(void* pvParameters) {
     TickType_t xLastWakeTime = xTaskGetTickCount();
-    const TickType_t xFrequency = pdMS_TO_TICKS(50); // 20 Hz
+    const TickType_t xFrequency = pdMS_TO_TICKS(Config::WS_BROADCAST_INTERVAL_MS);
 
     while (true) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);

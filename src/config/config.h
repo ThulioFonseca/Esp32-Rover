@@ -20,9 +20,14 @@ namespace Config {
   
   // Timeouts e intervalos
   extern unsigned long IBUS_TIMEOUT_MS;
-  constexpr unsigned long CONTROL_INTERVAL_MS = 20; // Frequência de controle fixa
-  constexpr unsigned long DEBUG_INTERVAL_MS = 100;
-  constexpr unsigned long ARMING_TIME_MS = 1500;
+  constexpr unsigned long CONTROL_INTERVAL_MS   = 20;   // 50 Hz — frequência do loop de controle
+  constexpr unsigned long WS_BROADCAST_INTERVAL_MS = 50; // 20 Hz — frequência do broadcast WebSocket
+  constexpr unsigned long DEBUG_INTERVAL_MS     = 100;
+  constexpr unsigned long ARMING_TIME_MS        = 1500;
+  constexpr int           TANK_MUTEX_TIMEOUT_MS = 5;    // Timeout do try-lock no tankControlTask
+
+  // WebSocket
+  constexpr size_t WS_BINARY_FRAME_SIZE = 122; // Tamanho fixo do frame binário (ver broadcastSensorData)
 
   // Configurações de Rede (Persistentes via NVS)
   extern uint8_t WIFI_MODE; // 0 = AP, 1 = STA

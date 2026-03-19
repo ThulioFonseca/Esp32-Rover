@@ -54,9 +54,6 @@ namespace Types {
     // Giroscópio (deg/s)
     float gyroX, gyroY, gyroZ;
 
-    // Magnetômetro (µT) — zero se o módulo não tiver magnetômetro (ex: MPU-6500)
-    float magX, magY, magZ;
-
     // Ângulos Euler calculados pelo filtro de fusão interno (graus)
     float roll, pitch, yaw;
 

@@ -5,8 +5,6 @@
 #include <ArduinoJson.h>
 #include "freertos/semphr.h"
 
-#include "controllers/tank_controller.h"
-
 extern TankController tankController;
 extern PendingConfig pendingConfig;
 extern volatile bool pendingReboot;
@@ -86,11 +84,8 @@ void WebServerManager::setupRoutes() {
     // Content-Encoding: gzip — o browser descomprime, poupando banda Wi-Fi.
     // Cache-Control: max-age=31536000 — browser só busca no primeiro acesso.
 
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-        AsyncWebServerResponse *r = request->beginResponse(200, "text/html", index_html_gz, index_html_gz_len);
-        r->addHeader("Content-Encoding", "gzip");
-        r->addHeader("Cache-Control", "max-age=31536000, public");
-        request->send(r);
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *r){
+        r->redirect("/index.html");
     });
 
     server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -436,7 +431,7 @@ size_t WebServerManager::wsClientCount() const {
 // ── Fase 3: Buffer binário estático (122 bytes, little-endian) ───────────────
 // Protocolo: packet_type(1) | IMU(41) | GPS(29) | Compass(17) | Motors(8) | CH(21) | Sys(5)
 // Elimina serialização JSON (economiza ~230 bytes/frame × 20Hz = ~4.5 KB/s de banda)
-static uint8_t wsBinaryBuffer[122];
+static uint8_t wsBinaryBuffer[Config::WS_BINARY_FRAME_SIZE];
 
 void WebServerManager::broadcastSensorData() {
     ws.cleanupClients(2);

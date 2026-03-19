@@ -8,10 +8,6 @@ int clampi(int value, int min, int max) {
     return (value < min) ? min : (value > max ? max : value);
 }
 
-float clampf(float value, float min, float max) {
-    return (value < min) ? min : (value > max ? max : value);
-}
-
 /**
  * Converte um pulso PWM (1000–2000 µs) em um valor normalizado [-1.0, +1.0].
  *
@@ -55,14 +51,6 @@ int denormalizeToEsc(float norm) {
         int outMax = Config::ESC_DEAD_LOW - 1;
         return outMax - static_cast<int>(pos * (outMax - outMin));
     }
-}
-
-bool isInRange(int value, int min, int max) {
-    return (value >= min && value <= max);
-}
-
-unsigned long getElapsedTime(unsigned long startTime) {
-    return millis() - startTime;
 }
 
 } // namespace Utils

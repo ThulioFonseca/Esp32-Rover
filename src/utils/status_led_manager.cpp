@@ -1,5 +1,12 @@
 #include "status_led_manager.h"
 
+static constexpr uint32_t LED_HEARTBEAT_ON_MS   = 100;
+static constexpr uint32_t LED_HEARTBEAT_OFF_MS  = 1900;
+static constexpr uint32_t LED_BLINK2_FIRST_MS   = 100;
+static constexpr uint32_t LED_BLINK2_GAP_MS     = 150;
+static constexpr uint32_t LED_BLINK2_PAUSE_MS   = 1500;
+static constexpr uint32_t LED_ERROR_PERIOD_MS   = 200;
+
 StatusLedManager::StatusLedManager(uint8_t ledPin) {
     pin = ledPin;
     currentStatus = LED_STATUS_OFF;
@@ -33,8 +40,8 @@ void StatusLedManager::update() {
 
     switch (currentStatus) {
         case LED_STATUS_OPERATIONAL:
-            // Heartbeat: 100ms ON -> 1900ms OFF
-            interval = (stateStep == 0) ? 100 : 1900;
+            // Heartbeat: LED_HEARTBEAT_ON_MS ON -> LED_HEARTBEAT_OFF_MS OFF
+            interval = (stateStep == 0) ? LED_HEARTBEAT_ON_MS : LED_HEARTBEAT_OFF_MS;
             if (currentMillis - previousMillis >= interval) {
                 previousMillis = currentMillis;
                 stateStep = (stateStep + 1) % 2;
@@ -44,10 +51,10 @@ void StatusLedManager::update() {
             break;
 
         case LED_STATUS_WARNING:
-            // Double blink: 100ms ON -> 150ms OFF -> 100ms ON -> 1500ms OFF
-            if (stateStep == 0 || stateStep == 2) interval = 100;
-            else if (stateStep == 1) interval = 150;
-            else interval = 1500;
+            // Double blink: ON -> gap -> ON -> pause (4 steps)
+            if (stateStep == 0 || stateStep == 2) interval = LED_BLINK2_FIRST_MS;
+            else if (stateStep == 1) interval = LED_BLINK2_GAP_MS;
+            else interval = LED_BLINK2_PAUSE_MS;
 
             if (currentMillis - previousMillis >= interval) {
                 previousMillis = currentMillis;
@@ -58,8 +65,8 @@ void StatusLedManager::update() {
             break;
 
         case LED_STATUS_ERROR:
-            // Fast continuous blink: 200ms ON -> 200ms OFF
-            interval = 200;
+            // Fast continuous blink
+            interval = LED_ERROR_PERIOD_MS;
             if (currentMillis - previousMillis >= interval) {
                 previousMillis = currentMillis;
                 stateStep = (stateStep + 1) % 2;

@@ -23,9 +23,6 @@ public:
   };
 
   void logf(LogLevel level, const char* format, ...);
-  void enableSerialOutput(bool enable);
-  bool isSerialOutputEnabled() const;
-
   // Manter retrocompatibilidade por enquanto
   void printChannelData(const Types::ChannelData& channels);
   void printMotorCommands(const Types::MotorCommands& motors);
