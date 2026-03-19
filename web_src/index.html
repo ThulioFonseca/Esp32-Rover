@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Rover</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:,">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>ESP32 <span>Rover</span></h1>
+            <div class="connection-status" id="connectionStatus">Connected</div>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-btn active" onclick="openTab('home')">HOME</button>
+            <button class="tab-btn" onclick="openTab('radio')">RADIO</button>
+            <button class="tab-btn" onclick="openTab('sensors')">SENSORS</button>
+            <button class="tab-btn" onclick="openTab('hud-tab')">HUD</button>
+            <button class="tab-btn" onclick="openTab('config')">CONFIG</button>
+        </nav>
+
+        <main>
+            <div id="home" class="tab-content active">
+                <div class="card" id="armed-card">
+                    <div class="setting-item" style="margin-bottom: 0;">
+                        <label for="armed-toggle" id="armed-label">SYSTEM STATUS</label>
+                        <label class="switch">
+                            <input type="checkbox" id="armed-toggle" onchange="toggleArmed()">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h3>System Info</h3>
+                        <ul id="sysinfo-list">
+                            <li>Loading...</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Network</h3>
+                        <ul id="netinfo-list">
+                            <li>Loading...</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div id="radio" class="tab-content">
+                <div class="dashboard-grid" style="grid-template-columns: 1fr;">
+                    <div class="card">
+                        <h3>Receiver Channels</h3>
+                        <div id="all-channels">Loading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="sensors" class="tab-content">
+                <div id="imu-offline" class="card" style="display:none; border-left: 4px solid var(--watermelon); margin-bottom: 20px;">
+                    <p style="margin:0; color:var(--watermelon); font-weight:bold; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">⚠ IMU offline or data invalid</p>
+                </div>
+
+                <!-- GPS Card span 2 columns if space allows -->
+                <div class="dashboard-grid" style="margin-bottom: 20px;">
+                    <div class="card" style="grid-column: 1 / -1;">
+                        <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--header-border); padding-bottom: 12px; margin-bottom: 16px;">
+                            <h3 style="border: none; padding: 0; margin: 0;">GPS Location</h3>
+                            <span id="gps-status" style="font-size: 0.75rem; font-weight: bold; padding: 4px 8px; border-radius: 4px; background: rgba(228, 37, 72, 0.1); color: var(--watermelon); text-transform: uppercase;">NO FIX</span>
+                        </div>
+                        <div class="dashboard-grid">
+                            <div>
+                                <div class="sensor-row"><span class="label">Latitude</span><div class="sensor-data"><span class="value" id="gps-lat">--</span><span class="unit">°</span></div></div>
+                                <div class="sensor-row"><span class="label">Longitude</span><div class="sensor-data"><span class="value" id="gps-lng">--</span><span class="unit">°</span></div></div>
+                                <div class="sensor-row"><span class="label">Altitude</span><div class="sensor-data"><span class="value" id="gps-alt">--</span><span class="unit">m</span></div></div>
+                                <div class="sensor-row"><span class="label">Satellites</span><div class="sensor-data"><span class="value" id="gps-sats">0</span><span class="unit"></span></div></div>
+                            </div>
+                            <div>
+                                <div class="sensor-row"><span class="label">Speed</span><div class="sensor-data"><span class="value" id="gps-speed">--</span><span class="unit">km/h</span></div></div>
+                                <div class="sensor-row"><span class="label">Course</span><div class="sensor-data"><span class="value" id="gps-course">--</span><span class="unit">°</span></div></div>
+                                <div class="sensor-row"><span class="label">HDOP</span><div class="sensor-data"><span class="value" id="gps-hdop">--</span><span class="unit"></span></div></div>
+                                <div class="sensor-row"><span class="label">Time (UTC-3)</span><div class="sensor-data"><span class="value" style="font-size:0.8rem" id="gps-time">--</span><span class="unit"></span></div></div>
+                            </div>
+                        </div>
+                        <div style="border-top: 1px solid var(--header-border); margin-top: 16px; padding-top: 16px;">
+                            <h3 style="border: none; padding: 0; margin-bottom: 12px; font-size: 0.8rem;">Compass (External Mag)</h3>
+                            <div class="dashboard-grid">
+                                <div>
+                                    <div class="sensor-row"><span class="label">Heading</span><div class="sensor-data"><span class="value" id="comp-heading">--</span><span class="unit">°</span></div></div>
+                                    <div class="sensor-row"><span class="label">Mag X</span><div class="sensor-data"><span class="value" id="comp-x">--</span><span class="unit"></span></div></div>
+                                </div>
+                                <div>
+                                    <div class="sensor-row"><span class="label">Mag Y</span><div class="sensor-data"><span class="value" id="comp-y">--</span><span class="unit"></span></div></div>
+                                    <div class="sensor-row"><span class="label">Mag Z</span><div class="sensor-data"><span class="value" id="comp-z">--</span><span class="unit"></span></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h3>Orientation</h3>
+                        <div class="sensor-row"><span class="label">Roll</span><div class="sensor-data"><span class="value" id="imu-roll">--</span><span class="unit">°</span></div></div>
+                        <div class="sensor-row"><span class="label">Pitch</span><div class="sensor-data"><span class="value" id="imu-pitch">--</span><span class="unit">°</span></div></div>
+                        <div class="sensor-row"><span class="label">Yaw</span><div class="sensor-data"><span class="value" id="imu-yaw">--</span><span class="unit">°</span></div></div>
+                        <div class="sensor-row" style="margin-top:12px;"><span class="label">Temperature</span><div class="sensor-data"><span class="value" id="imu-temp">--</span><span class="unit">°C</span></div></div>
+                    </div>
+                    <div class="card">
+                        <h3>Accelerometer (g)</h3>
+                        <div class="sensor-row"><span class="label">X</span><div class="sensor-data"><span class="value" id="accel-x">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-row"><span class="label">Y</span><div class="sensor-data"><span class="value" id="accel-y">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-row"><span class="label">Z</span><div class="sensor-data"><span class="value" id="accel-z">--</span><span class="unit"></span></div></div>
+                    </div>
+                    <div class="card">
+                        <h3>Gyroscope (°/s)</h3>
+                        <div class="sensor-row"><span class="label">X</span><div class="sensor-data"><span class="value" id="gyro-x">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-row"><span class="label">Y</span><div class="sensor-data"><span class="value" id="gyro-y">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-row"><span class="label">Z</span><div class="sensor-data"><span class="value" id="gyro-z">--</span><span class="unit"></span></div></div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <button id="btn-calibrate" onclick="calibrateIMU()" class="btn-primary" style="width: 100%; background: transparent; border: 1px solid var(--accent-color); color: var(--accent-color);">
+                        CALIBRATE IMU (ZERO YAW)
+                    </button>
+                    <p style="font-size: 0.8em; color: var(--text-muted); text-align: center; margin-top: 8px;">Keep the rover completely still before calibrating.</p>
+                </div>
+            </div>
+
+            <div id="hud-tab" class="tab-content">
+                <div class="hud-viewport">
+                    <div class="lens-fx"></div>
+                    <div class="screen-fx"></div>
+
+                    <div id="boot-screen">
+                        <div class="boot-line" id="b1">> POWER ON... OK</div>
+                        <div class="boot-line" id="b2">> MOUNTING FILESYSTEM... OK</div>
+                        <div class="boot-line" id="b3">> INIT IMU MPU6050... CALIBRATING... DONE</div>
+                        <div class="boot-line" id="b4">> SECURING GNSS LINK... TRACKING... OK</div>
+                        <div class="boot-line" id="b5" style="color: #fff">> ARMING UGV ESP-TANK...</div>
+                    </div>
+
+                    <svg class="optics-bg" viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+                        <circle cx="960" cy="540" r="400" stroke="var(--primary)" stroke-width="1" fill="none" stroke-dasharray="2 10" style="transition: stroke 0.2s;" />
+                        <circle cx="960" cy="540" r="600" stroke="var(--primary)" stroke-width="0.5" fill="none" style="transition: stroke 0.2s;" />
+                        <line x1="0" y1="540" x2="1920" y2="540" stroke="var(--primary)" stroke-width="0.5" stroke-dasharray="5 5" style="transition: stroke 0.2s;" />
+                        <line x1="960" y1="0" x2="960" y2="1080" stroke="var(--primary)" stroke-width="0.5" stroke-dasharray="5 5" style="transition: stroke 0.2s;" />
+                    </svg>
+
+                    <div class="hud-container" id="main-hud">
+                        <div class="center-hud">
+                            <svg class="svg-center" viewBox="0 0 600 600">
+                                <defs>
+                                    <linearGradient id="compass-fade-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                        <stop offset="0%" stop-color="black" /><stop offset="10%" stop-color="black" />
+                                        <stop offset="30%" stop-color="white" /><stop offset="70%" stop-color="white" />
+                                        <stop offset="90%" stop-color="black" /><stop offset="100%" stop-color="black" />
+                                    </linearGradient>
+                                    <mask id="compass-fade" maskUnits="objectBoundingBox"><rect x="-150" y="-50" width="300" height="100" fill="url(#compass-fade-gradient)" /></mask>
+
+                                    <linearGradient id="window-fade-gradient" x1="0" y1="0" x2="0" y2="600" gradientUnits="userSpaceOnUse">
+                                        <stop offset="0%" stop-color="black" /><stop offset="22%" stop-color="black" />
+                                        <stop offset="35%" stop-color="white" /><stop offset="70%" stop-color="white" />
+                                        <stop offset="85%" stop-color="black" /><stop offset="100%" stop-color="black" />
+                                    </linearGradient>
+                                    <mask id="window-fade" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="600"><rect x="0" y="0" width="600" height="600" fill="url(#window-fade-gradient)" /></mask>
+                                </defs>
+
+                                <text x="300" y="210" id="critical-warn-msg">CRITICAL TILT ANGLE</text>
+
+                                <g class="compass-group" mask="url(#compass-fade)">
+                                    <path d="M -150 0 L 150 0" class="stroke-main" />
+                                    <polygon points="0,0 -8,-10 8,-10" fill="var(--danger)" />
+                                    <g id="compass-tape"></g>
+                                </g>
+
+                                <g transform="translate(300, 100)">
+                                    <text x="-25" y="0" class="center-text-readout" font-size="13" id="ret-pitch" text-anchor="end">P: 0°</text>
+                                    <circle cx="0" cy="-4" r="1.5" fill="var(--primary-dim)" style="transition: fill 0.2s;" />
+                                    <text x="25" y="0" class="center-text-readout" font-size="13" id="ret-roll" text-anchor="start">R: 0°</text>
+                                </g>
+
+                                <path d="M 150 400 A 141.42 141.42 0 0 1 150 200" class="stroke-dim" stroke-width="6" />
+                                <path d="M 150 400 A 141.42 141.42 0 0 1 150 200" class="stroke-main" stroke-width="6" id="arc-speed" stroke-dasharray="0 450" />
+                                <text x="90" y="296" class="center-text-readout" id="center-spd" text-anchor="end">0.0</text>
+                                <text x="90" y="312" class="center-text-label" text-anchor="end">KM/H</text>
+
+                                <path d="M 450 400 A 141.42 141.42 0 0 0 450 200" class="stroke-dim" stroke-width="6" />
+                                <path d="M 450 400 A 141.42 141.42 0 0 0 450 200" stroke="var(--warning)" fill="none" stroke-width="6" id="arc-batt" stroke-dasharray="222 450" />
+                                <text x="510" y="296" class="center-text-readout" style="fill: var(--warning);" id="center-bat" text-anchor="start">PWR</text>
+                                <text x="510" y="312" class="center-text-label" text-anchor="start">SYSTEM</text>
+
+                                <g transform="translate(300, 300)">
+                                    <circle cx="0" cy="0" r="3" fill="var(--danger)" />
+                                    <path d="M -20 0 L -8 0 M 8 0 L 20 0 M 0 -20 L 0 -8" class="stroke-main" stroke-width="2" />
+                                    <path d="M -50 0 L -30 0 L -30 10 M 50 0 L 30 0 L 30 10" class="stroke-dim" />
+                                </g>
+
+                                <g mask="url(#window-fade)">
+                                    <g id="horizon-group" transform="translate(300, 300)">
+                                        <g id="pitch-ladder"></g>
+                                    </g>
+                                </g>
+                            </svg>
+                        </div>
+
+                        <div class="side-panel panel-top-left">
+                            <div class="panel-header">SYS-OPS</div>
+                            <div class="data-row"><span class="data-label">UNIT</span><span class="data-value data-value-small">UGV ESP-TANK</span></div>
+                            <div class="data-row"><span class="data-label">MODE</span><span class="data-value data-value-small" style="color: var(--warning);">MANUAL FPV</span></div>
+                            <div class="data-row" style="margin-top: 4px;"><span class="data-label">STATE</span><span class="status-badge" id="hud-sys-state">DISARMED</span></div>
+                            <div class="data-row" style="margin-top: 8px;"><span class="data-label">UPTIME</span><span class="data-value data-value-small" id="hud-sys-uptime" style="color: var(--primary-dim);">00:00:00</span></div>
+                        </div>
+
+                        <div class="side-panel panel-top-right">
+                            <div class="panel-header">SAT-NAV</div>
+                            <div class="data-row"><span class="data-label">LAT</span><span class="data-value data-value-small" id="hud-gps-lat">--</span></div>
+                            <div class="data-row"><span class="data-label">LNG</span><span class="data-value data-value-small" id="hud-gps-lng">--</span></div>
+                            <div class="data-row"><span class="data-label">ALT</span><span class="data-value data-value-small" id="hud-gps-alt">--</span></div>
+                            <div class="accel-row">
+                                <div class="accel-item"><span class="data-label">SATS</span><span class="data-value" id="hud-gps-sats" style="color: var(--primary);">0</span></div>
+                                <div class="accel-item"><span class="data-label">HDOP</span><span class="data-value" id="hud-gps-hdop">--</span></div>
+                                <div class="accel-item"><span class="data-label">CRS</span><span class="data-value" id="hud-gps-crs">--</span></div>
+                                <div class="accel-item"><span class="data-label">SPD</span><span class="data-value" id="hud-gps-spd">--</span></div>
+                            </div>
+                            <div style="text-align: right; color: var(--primary-dim); font-size: 0.55rem; font-weight: bold; transition: color 0.2s;">TIME: <span id="hud-sys-time-local">--</span></div>
+                        </div>
+
+                        <div class="side-panel panel-left">
+                            <div class="panel-header">DRIVE (TRACKS)</div>
+                            <div class="motor-grid" style="grid-template-columns: 1fr;">
+                                <div><div class="data-row"><span class="data-label">LEFT</span><span class="data-value" id="hud-mot-l">0%</span></div><div class="bar-bg"><div class="bar-fill" id="hud-bar-mot-l"></div></div></div>
+                                <div><div class="data-row"><span class="data-label">RIGHT</span><span class="data-value" id="hud-mot-r">0%</span></div><div class="bar-bg"><div class="bar-fill" id="hud-bar-mot-r"></div></div></div>
+                            </div>
+                            <div class="push-bottom">
+                                <div class="data-row"><span class="data-label">TEMP</span><span class="data-value" id="hud-imu-temp">--°C</span></div>
+                                <div class="data-row"><span class="data-label">LINK</span><span class="data-value" id="hud-sys-link" style="color: var(--primary-dim)">OK</span></div>
+                            </div>
+                        </div>
+
+                        <div class="side-panel panel-right">
+                            <div class="panel-header">IMU SENSE</div>
+                            <div class="accel-row">
+                                <div class="accel-item"><span class="data-label">AX</span><span class="data-value" id="hud-acc-x">0.0</span></div>
+                                <div class="accel-item"><span class="data-label">AY</span><span class="data-value" id="hud-acc-y">0.0</span></div>
+                                <div class="accel-item"><span class="data-label">AZ</span><span class="data-value" id="hud-acc-z">1.0</span></div>
+                            </div>
+                            <div style="margin-top: 4px;">
+                                <div class="data-row"><span class="data-label">SLOPE</span><span class="data-value" id="hud-slope-val">0°</span></div>
+                                <div class="bar-bg"><div class="bar-fill" id="hud-bar-slope" style="width: 0%;"></div></div>
+                            </div>
+                            <div class="push-bottom">
+                                <div class="data-row"><span class="data-label">STATUS</span><span class="data-value" id="hud-imu-stat" style="color: var(--primary-dim)">NOMINAL</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="config" class="tab-content">
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h3>System Settings</h3>
+                        <div class="setting-item" style="margin-bottom: 15px;">
+                            <label for="theme-toggle">Dark Theme</label>
+                            <label class="switch">
+                                <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <div class="setting-item">
+                            <label for="debug-toggle">Serial Debug Output</label>
+                            <label class="switch">
+                                <input type="checkbox" id="debug-toggle" onchange="toggleDebug()">
+                                <span class="slider round"></span>
+                            </label>
+                        </div>
+                        <p style="font-size: 0.8em; color: var(--text-muted); margin-top: 4px;">Enables detailed logging to the Serial Monitor via USB.</p>
+                    </div>
+
+                    <div class="card">
+                        <h3>Wi-Fi Configuration</h3>
+                        <div class="setting-item" style="margin-bottom: 15px;">
+                            <label>Network Mode</label>
+                            <select id="wifi-mode" onchange="toggleWifiFields()" class="custom-input">
+                                <option value="0">Access Point (AP)</option>
+                                <option value="1">Station (Client)</option>
+                            </select>
+                        </div>
+
+                        <div id="sta-fields" style="display:none; transition: all 0.3s;">
+                            <div class="setting-item" style="flex-direction: column; align-items: flex-start;">
+                                <label style="margin-bottom: 5px; font-size: 0.85em; color: var(--text-muted);">Router SSID</label>
+                                <input type="text" id="sta-ssid" class="custom-input" placeholder="MyNetworkName" style="width: 100%;">
+                            </div>
+                            <div class="setting-item" style="flex-direction: column; align-items: flex-start; margin-top: 10px;">
+                                <label style="margin-bottom: 5px; font-size: 0.85em; color: var(--text-muted);">Password</label>
+                                <input type="password" id="sta-pass" class="custom-input" placeholder="••••••••" style="width: 100%;">
+                            </div>
+                        </div>
+
+                        <button onclick="saveNetworkSettings()" class="btn-primary" style="margin-top: 20px; width: 100%;">SAVE & REBOOT</button>
+                    </div>
+
+                    <!-- System Logs Console -->
+                    <div class="card" style="grid-column: 1 / -1;">
+                        <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--header-border); padding-bottom: 12px; margin-bottom: 16px;">
+                            <h3 style="border: none; padding: 0; margin: 0;">System Logs</h3>
+                            <div class="setting-item" style="margin:0; min-width:180px;">
+                                <label for="auto-refresh-logs" style="font-size: 0.8rem; margin-right: 10px;">Auto Refresh Logs</label>
+                                <label class="switch">
+                                    <input type="checkbox" id="auto-refresh-logs" checked>
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <div id="log-console"
+                             style="width: 100%; height: 300px; background: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 0.85rem; border-radius: 6px; padding: 12px; border: 1px solid var(--header-border); overflow-y: scroll; line-height: 1.5; white-space: pre-wrap; display: flex; flex-direction: column;"></div>
+                        <button onclick="clearSystemLogs()" class="btn-primary" style="margin-top: 10px; width: 100%; background: transparent; border: 1px solid var(--accent-color); color: var(--accent-color);">CLEAR CONSOLE</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

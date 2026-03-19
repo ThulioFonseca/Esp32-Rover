@@ -82,21 +82,36 @@ bool WebServerManager::begin() {
 }
 
 void WebServerManager::setupRoutes() {
-    // Servir arquivos embarcados na memória (PROGMEM) para evitar conflitos com SPIFFS/Interrupts
+    // Assets estáticos servidos com GZIP + Cache agressivo (Fase 1).
+    // Content-Encoding: gzip — o browser descomprime, poupando banda Wi-Fi.
+    // Cache-Control: max-age=31536000 — browser só busca no primeiro acesso.
+
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(200, "text/html", index_html);
+        AsyncWebServerResponse *r = request->beginResponse(200, "text/html", index_html_gz, index_html_gz_len);
+        r->addHeader("Content-Encoding", "gzip");
+        r->addHeader("Cache-Control", "max-age=31536000, public");
+        request->send(r);
     });
 
     server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(200, "text/html", index_html);
+        AsyncWebServerResponse *r = request->beginResponse(200, "text/html", index_html_gz, index_html_gz_len);
+        r->addHeader("Content-Encoding", "gzip");
+        r->addHeader("Cache-Control", "max-age=31536000, public");
+        request->send(r);
     });
 
     server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send_P(200, "text/css", style_css);
+        AsyncWebServerResponse *r = request->beginResponse(200, "text/css", style_css_gz, style_css_gz_len);
+        r->addHeader("Content-Encoding", "gzip");
+        r->addHeader("Cache-Control", "max-age=31536000, public");
+        request->send(r);
     });
 
     server.on("/script.js", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send_P(200, "application/javascript", script_js);
+        AsyncWebServerResponse *r = request->beginResponse(200, "application/javascript", script_js_gz, script_js_gz_len);
+        r->addHeader("Content-Encoding", "gzip");
+        r->addHeader("Cache-Control", "max-age=31536000, public");
+        request->send(r);
     });
 
     // Health check
@@ -418,9 +433,10 @@ size_t WebServerManager::wsClientCount() const {
  *   - Sem String temporária que causa move semantics perigosa
  */
 
-// Buffer/Document pré-alocados (uma vez na memória)
-static StaticJsonDocument<384> wsJsonDoc;
-static char wsPayloadBuffer[512];
+// ── Fase 3: Buffer binário estático (122 bytes, little-endian) ───────────────
+// Protocolo: packet_type(1) | IMU(41) | GPS(29) | Compass(17) | Motors(8) | CH(21) | Sys(5)
+// Elimina serialização JSON (economiza ~230 bytes/frame × 20Hz = ~4.5 KB/s de banda)
+static uint8_t wsBinaryBuffer[122];
 
 void WebServerManager::broadcastSensorData() {
     ws.cleanupClients(2);
@@ -448,73 +464,55 @@ void WebServerManager::broadcastSensorData() {
 
     xSemaphoreGive(tankMutex);
 
-    // ── 2. Serialização JSON com StaticJsonDocument (stack-based) ──
-    wsJsonDoc.clear(); // Reutiliza documento estático
-    wsJsonDoc["t"] = "sensor";
+    // ── 2. Packing binário com memcpy (evita UB de strict-aliasing) ──
+    uint8_t* p = wsBinaryBuffer;
 
-    JsonObject d = wsJsonDoc["d"].to<JsonObject>();
+    auto writeU8  = [&](uint8_t  v) { *p++ = v; };
+    auto writeU32 = [&](uint32_t v) { memcpy(p, &v, 4); p += 4; };
+    auto writeI16 = [&](int16_t  v) { memcpy(p, &v, 2); p += 2; };
+    auto writeF32 = [&](float    v) { memcpy(p, &v, 4); p += 4; };
 
-    // IMU
-    JsonObject jimu = d["imu"].to<JsonObject>();
-    jimu["v"]  = imu.isValid;
-    jimu["r"]  = imu.roll;
-    jimu["p"]  = imu.pitch;
-    jimu["y"]  = imu.yaw;
-    jimu["t"]  = imu.temperature;
-    jimu["ax"] = imu.accelX;
-    jimu["ay"] = imu.accelY;
-    jimu["az"] = imu.accelZ;
-    jimu["gx"] = imu.gyroX;
-    jimu["gy"] = imu.gyroY;
-    jimu["gz"] = imu.gyroZ;
+    writeU8(0x01); // packet_type = sensor frame
 
-    // GPS
-    JsonObject jgps = d["gps"].to<JsonObject>();
-    jgps["v"] = gps.isValid;
-    if (gps.isValid) {
-        jgps["la"] = gps.latitude;
-        jgps["ln"] = gps.longitude;
-        jgps["al"] = gps.altitude;
-        jgps["sp"] = gps.speed;
-        jgps["cr"] = gps.course;
-        jgps["sa"] = gps.satellites;
-        jgps["hd"] = gps.hdop;
-        jgps["tm"] = gps.dateTime;
-    }
+    // IMU (41 bytes: offset 1–41)
+    writeF32(imu.roll);   writeF32(imu.pitch);  writeF32(imu.yaw);
+    writeF32(imu.accelX); writeF32(imu.accelY); writeF32(imu.accelZ);
+    writeF32(imu.gyroX);  writeF32(imu.gyroY);  writeF32(imu.gyroZ);
+    writeF32(imu.temperature);
+    writeU8(imu.isValid ? 1 : 0);
 
-    // Compass
-    JsonObject jcmp = d["cmp"].to<JsonObject>();
-    jcmp["v"] = compass.isValid;
-    jcmp["h"] = compass.heading;
-    jcmp["x"] = compass.x;
-    jcmp["y"] = compass.y;
-    jcmp["z"] = compass.z;
+    // GPS (29 bytes: offset 42–70)
+    writeF32(gps.latitude);  writeF32(gps.longitude); writeF32(gps.altitude);
+    writeF32(gps.speed);     writeF32(gps.course);
+    writeU32(gps.satellites); writeF32(gps.hdop);
+    writeU8(gps.isValid ? 1 : 0);
 
-    // Motors
-    JsonObject jmot = d["mot"].to<JsonObject>();
-    jmot["l"] = motors.left;
-    jmot["r"] = motors.right;
+    // Compass (17 bytes: offset 71–87)
+    writeF32(compass.heading);
+    writeF32(compass.x); writeF32(compass.y); writeF32(compass.z);
+    writeU8(compass.isValid ? 1 : 0);
 
-    // RC Channels
-    JsonArray jch = d["ch"].to<JsonArray>();
-    jch.add(channels.steering);
-    jch.add(channels.aux[0]);
-    jch.add(channels.throttle);
-    jch.add(channels.aux[1]);
-    jch.add(channels.aux[2]);
-    jch.add(channels.aux[3]);
-    jch.add(channels.aux[4]);
-    jch.add(channels.aux[5]);
-    jch.add(channels.aux[6]);
-    jch.add(channels.aux[7]);
+    // Motors (8 bytes: offset 88–95)
+    writeF32(motors.left); writeF32(motors.right);
 
-    d["cv"] = channels.isValid;
-    d["arm"] = armed;
-    d["up"] = millis();
+    // RC Channels — 10 × int16 + valid (21 bytes: offset 96–116)
+    writeI16((int16_t)channels.steering);
+    writeI16((int16_t)channels.aux[0]);
+    writeI16((int16_t)channels.throttle);
+    writeI16((int16_t)channels.aux[1]);
+    writeI16((int16_t)channels.aux[2]);
+    writeI16((int16_t)channels.aux[3]);
+    writeI16((int16_t)channels.aux[4]);
+    writeI16((int16_t)channels.aux[5]);
+    writeI16((int16_t)channels.aux[6]);
+    writeI16((int16_t)channels.aux[7]);
+    writeU8(channels.isValid ? 1 : 0);
 
-    // ── 3. Serializar para buffer pré-alocado (evita String malloc) ──
-    size_t len = serializeJson(wsJsonDoc, wsPayloadBuffer, sizeof(wsPayloadBuffer));
-    if (len > 0 && len < sizeof(wsPayloadBuffer)) {
-        ws.textAll(wsPayloadBuffer, len);
-    }
+    // System (5 bytes: offset 117–121)
+    writeU8(armed ? 1 : 0);
+    writeU32(millis());
+
+    // ── 3. Envia como frame binário WebSocket ──
+    // p - wsBinaryBuffer deve ser exatamente 122 bytes
+    ws.binaryAll(wsBinaryBuffer, (size_t)(p - wsBinaryBuffer));
 }
