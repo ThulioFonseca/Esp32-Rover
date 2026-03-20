@@ -140,15 +140,11 @@ void TankController::updateSystem() {
 
     processControls();
 
-    debugManager.printChannelData(channelManager.getChannelData());
-    debugManager.printMotorCommands(motorController.getCommands());
+    debugManager.printControlState(channelManager.getChannelData(), motorController.getCommands());
 }
 
 void TankController::handleTimeout() {
     motorController.setNeutral();
-
-    debugManager.printTimeout();
-
     // Recuperação do estado TIMEOUT → ARMED é tratada exclusivamente em updateState().
 }
 

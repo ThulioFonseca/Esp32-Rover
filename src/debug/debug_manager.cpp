@@ -2,10 +2,9 @@
 #include "../config/config.h"
 #include <Arduino.h>
 
-DebugManager::DebugManager() : isEnabled(false), lastPrintTime(0), logHead(0), logTail(0), logCount(0), serialMutex(NULL) {}
+DebugManager::DebugManager() : isEnabled(false), logHead(0), logTail(0), logCount(0), serialMutex(NULL), _prevNThrottle(0.0f), _prevNSteering(0.0f) {}
 
 void DebugManager::initialize() {
-  lastPrintTime = millis();
   if (serialMutex == NULL) {
     serialMutex = xSemaphoreCreateMutex();
   }
@@ -89,21 +88,15 @@ bool DebugManager::isDebugEnabled() const {
     return isEnabled;
 }
 
-void DebugManager::printChannelData(const Types::ChannelData& channels) {
-    if (!shouldPrint()) return;
+void DebugManager::printControlState(const Types::ChannelData& ch, const Types::MotorCommands& mot) {
+    if (fabsf(ch.nThrottle - _prevNThrottle) < CTRL_LOG_THRESHOLD &&
+        fabsf(ch.nSteering - _prevNSteering) < CTRL_LOG_THRESHOLD) return;
 
-    logf(LOG_LEVEL_DEBUG, "CH: T:%4d S:%4d | nT:%.3f nS:%.3f | AUX1:%4d AUX2:%4d",
-         channels.throttle, channels.steering, channels.nThrottle, channels.nSteering,
-         channels.aux[0], channels.aux[1]);
-}
+    _prevNThrottle = ch.nThrottle;
+    _prevNSteering = ch.nSteering;
 
-void DebugManager::printMotorCommands(const Types::MotorCommands& motors) {
-    if (!shouldPrint()) return;
-
-    logf(LOG_LEVEL_DEBUG, "MOT: L:%.3f R:%.3f | PWM: L:%4d R:%4d",
-         motors.left, motors.right, motors.leftPWM, motors.rightPWM);
-
-    updatePrintTime();
+    logf(LOG_LEVEL_DEBUG, "CTRL: nT:%+.2f nS:%+.2f | L:%+.2f R:%+.2f [%d/%d]",
+         ch.nThrottle, ch.nSteering, mot.left, mot.right, mot.leftPWM, mot.rightPWM);
 }
 
 void DebugManager::printSystemStatus(Types::SystemState state) {
@@ -120,18 +113,3 @@ void DebugManager::printSystemStatus(Types::SystemState state) {
     logf(LOG_LEVEL_INFO, "*** ESTADO: %s ***", stateStr);
 }
 
-void DebugManager::printTimeout() {
-    if (!shouldPrint()) return;
-
-    logf(LOG_LEVEL_WARN, "TIMEOUT: Sinal iBUS perdido — motores em neutro");
-    updatePrintTime();
-}
-
-
-bool DebugManager::shouldPrint() {
-    return (millis() - lastPrintTime >= Config::DEBUG_INTERVAL_MS);
-}
-
-void DebugManager::updatePrintTime() {
-    lastPrintTime = millis();
-}

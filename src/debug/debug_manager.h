@@ -7,7 +7,6 @@
 class DebugManager {
 private:
   volatile bool isEnabled;
-  unsigned long lastPrintTime;
 
 public:
   DebugManager();
@@ -24,19 +23,18 @@ public:
   };
 
   void logf(LogLevel level, const char* format, ...);
-  // Manter retrocompatibilidade por enquanto
-  void printChannelData(const Types::ChannelData& channels);
-  void printMotorCommands(const Types::MotorCommands& motors);
+  // Log de controle baseado em mudança — só registra quando valores mudam significativamente
+  void printControlState(const Types::ChannelData& channels, const Types::MotorCommands& motors);
   void printSystemStatus(Types::SystemState state);
-  void printTimeout();
 
   // Sistema de Log em RAM (Buffer Circular)
   String getLogs();
   void clearLogs();
   
 private:
-  bool shouldPrint();
-  void updatePrintTime();
+  float _prevNThrottle;
+  float _prevNSteering;
+  static constexpr float CTRL_LOG_THRESHOLD = 0.05f; // 5% de mudança para gerar log
 
   static const int MAX_LOG_LINES = 30;
   String logBuffer[MAX_LOG_LINES];
