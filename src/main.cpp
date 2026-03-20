@@ -14,7 +14,6 @@
 #include "web/web_server_manager.h"
 #include "config/config.h"
 #include "freertos/semphr.h"
-#include <SPIFFS.h>
 #include "config/pins.h"
 #include "utils/status_led_manager.h"
 
@@ -88,12 +87,7 @@ void setup() {
     Config::loadPreferences();
     tankController.debugManager.setEnabled(Config::DEBUG_ENABLED);
 
-    // 1. SPIFFS — sem interrupções de hardware ativas.
-    if (!SPIFFS.begin(true)) {
-        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha ao montar SPIFFS");
-    }
-
-    // 2. Criar Mutex antes de iniciar o web server (evita crash se requests chegarem cedo).
+    // 1. Criar Mutex antes de iniciar o web server (evita crash se requests chegarem cedo).
     tankMutex = xSemaphoreCreateMutex();
     if (tankMutex == NULL) {
         tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha ao criar mutex — sistema travado");
@@ -104,7 +98,7 @@ void setup() {
         }
     }
 
-    // 3. Wi-Fi e Web Server — pode escrever em Flash/NVS; deve ocorrer antes das interrupts.
+    // 2. Wi-Fi e Web Server — pode escrever em Flash/NVS; deve ocorrer antes das interrupts.
     if (!webServer.begin()) {
         tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha ao iniciar Web Server");
         statusLed.setStatus(LED_STATUS_ERROR);
@@ -114,7 +108,7 @@ void setup() {
         }
     }
 
-    // 4. TankController — habilita interrupts de hardware (Servos + Serial iBUS).
+    // 3. TankController — habilita interrupts de hardware (Servos + Serial iBUS).
     if (!tankController.initialize()) {
         tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha crítica no TankController — sistema travado");
         statusLed.setStatus(LED_STATUS_ERROR);
@@ -131,7 +125,7 @@ void setup() {
         statusLed.setStatus(LED_STATUS_OPERATIONAL);
     }
 
-    // 5. Tasks do sistema.
+    // 4. Tasks do sistema.
     // Core 0: wsBroadcastTask (20 Hz) + tasks internas do AsyncWebServer/AsyncTCP
     // Core 1: tankControlTask (50 Hz, prioridade alta)
     xTaskCreatePinnedToCore(wsBroadcastTask,  "WsBroadcastTask",  4096, NULL, 1, NULL, 0);
