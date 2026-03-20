@@ -37,26 +37,25 @@ bool TankController::initialize() {
     // Usa uma frequência de relógio extremamente lenta (10 kHz) para compensar a ausência de resistores de pull-up físicos fortes.
     Wire1.begin(Pins::COMPASS_SDA, Pins::COMPASS_SCL, 10000);
 
-    // Sensores são opcionais e têm auto-recuperação, falha inicial não trava o boot.
+    // Sensores são opcionais — falha na inicialização não trava o boot.
     if (Config::IMU_ENABLED) {
         debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando ImuSensor...");
         if (!imuSensor.initialize(&Wire)) {
-            debugManager.logf(DebugManager::LOG_LEVEL_WARN, "ImuSensor não encontrado no boot. Tentará reconectar em background.");
+            debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "ImuSensor (MPU-6500, I2C 0x%02X) não detectado — desabilitado até próximo reboot.", Config::IMU_I2C_ADDR);
         } else {
-            debugManager.logf(DebugManager::LOG_LEVEL_INFO, "ImuSensor inicializado — inciando calibração automática...");
-            imuSensor.startCalibration();
+            debugManager.logf(DebugManager::LOG_LEVEL_INFO, "ImuSensor inicializado — iniciando calibração automática...");
         }
     }
 
     if (Config::GPS_ENABLED) {
         debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando GpsSensor...");
         if (!gpsSensor.initialize()) {
-            debugManager.logf(DebugManager::LOG_LEVEL_WARN, "GpsSensor não inicializado. Tentará reconectar em background.");
+            debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "GpsSensor não inicializado — verifique conexão UART.");
         }
-        
+
         debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando CompassSensor...");
         if (!compassSensor.initialize(&Wire1)) {
-            debugManager.logf(DebugManager::LOG_LEVEL_WARN, "CompassSensor não encontrado no boot. Tentará reconectar em background.");
+            debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "CompassSensor (HMC5883L, I2C 0x1E) não detectado — desabilitado até próximo reboot.");
         }
     }
 
@@ -77,9 +76,11 @@ void TankController::update() {
     updateState();
 
     // Sensores atualizam independentes do estado do sistema
-    imuSensor.update();
-    gpsSensor.update();
-    compassSensor.update();
+    if (Config::IMU_ENABLED) imuSensor.update();
+    if (Config::GPS_ENABLED) {
+        gpsSensor.update();
+        compassSensor.update();
+    }
 
     switch (currentState) {
         case Types::ARMED:   updateSystem();               break;

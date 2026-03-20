@@ -50,10 +50,8 @@ private:
     long calibSumX, calibSumY, calibSumZ;
     static constexpr int CALIBRATION_SAMPLES_NEEDED = 200;
 
-    // Auto-recovery
     uint8_t errorCount;
-    unsigned long lastInitAttempt;
-    const unsigned long INIT_RETRY_INTERVAL_MS = 5000;
+    static constexpr uint8_t SENSOR_ERROR_THRESHOLD = 5;
 
     bool writeRegister(uint8_t reg, uint8_t value);
     bool readRegisters(uint8_t reg, uint8_t count, uint8_t* buf);

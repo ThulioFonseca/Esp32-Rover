@@ -4,82 +4,22 @@
 
 extern TankController tankController;
 
-CompassSensor::CompassSensor() : i2c(&Wire), initialized(false), lastReadTime(0), errorCount(0), lastInitAttempt(0) {}
-
-// Força os pinos de I2C do Compass para recriar comunicação
-void CompassSensor::resetI2CBus() {
-    tankController.debugManager.logf(DebugManager::LOG_LEVEL_WARN, "Executando I2C Bus Clear Agressivo no Compass...");
-    
-    // Desabilita a interface Wire para liberar os pinos
-    if(i2c) i2c->end();
-
-    // Espera a linha baixar as tensoes
-    delay(10);
-
-    // Configura os pinos como saída
-    pinMode(Pins::COMPASS_SDA, OUTPUT);
-    pinMode(Pins::COMPASS_SCL, OUTPUT);
-
-    // Força tudo para HIGH primeiro
-    digitalWrite(Pins::COMPASS_SDA, HIGH);
-    digitalWrite(Pins::COMPASS_SCL, HIGH);
-    delay(10);
-
-    // Alterna o Clock 9 vezes de forma LENTA (10ms de ciclo) para dar tempo aos sensores 
-    for (int i = 0; i < 9; i++) {
-        digitalWrite(Pins::COMPASS_SCL, LOW);
-        delay(5);
-        digitalWrite(Pins::COMPASS_SCL, HIGH);
-        delay(5);
-    }
-    
-    // Envia um START condition manual (SDA vai pra LOW enquanto SCL tá HIGH)
-    digitalWrite(Pins::COMPASS_SDA, LOW);
-    delay(5);
-    // Envia um STOP condition manual (SCL pra HIGH, e SDA transita pra HIGH)
-    digitalWrite(Pins::COMPASS_SCL, HIGH);
-    delay(5);
-    digitalWrite(Pins::COMPASS_SDA, HIGH);
-    delay(10);
-
-    // Reinicializa a Wire com o novo clock mega lento (10kHz)
-    if(i2c) i2c->begin(Pins::COMPASS_SDA, Pins::COMPASS_SCL, 10000);
-    delay(50); // Dá um tempo pro hardware interno do ESP32 acordar
-    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "I2C Bus Clear concluído.");
-}
+CompassSensor::CompassSensor() : i2c(&Wire), initialized(false), lastReadTime(0), errorCount(0) {}
 
 bool CompassSensor::initialize(TwoWire* wireInstance) {
     if (wireInstance != nullptr) {
         i2c = wireInstance;
     }
-    
-    // Evita spam de inicialização se estiver em loop de recuperação
-    if (millis() - lastInitAttempt < INIT_RETRY_INTERVAL_MS) {
-        return false;
-    }
-    lastInitAttempt = millis();
 
-    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "(Re)Inicializando Compass HMC5883L (Manual I2C)...");
-    
-    // Pequeno delay para estabilização do barramento
-    delay(50);
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando Compass HMC5883L (I2C 0x%02X)...", HMC5883L_ADDRESS);
 
     // Verifica presença no barramento
     i2c->beginTransmission(HMC5883L_ADDRESS);
     if (i2c->endTransmission() != 0) {
-        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Compass HMC5883L não encontrado no barramento I2C");
-        
-        // Tenta destravar o I2C Bus
-        resetI2CBus();
-        
-        // Tenta encontrar novamente
-        i2c->beginTransmission(HMC5883L_ADDRESS);
-        if (i2c->endTransmission() != 0) {
-             tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Compass HMC5883L falhou mesmo após I2C Reset.");
-             initialized = false;
-             data.isValid = false;
-             return false;
-        }
+        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Compass HMC5883L (0x%02X) não detectado no barramento I2C.", HMC5883L_ADDRESS);
+        initialized = false;
+        data.isValid = false;
+        return false;
     }
 
     // Configura o chip:
@@ -121,11 +61,7 @@ bool CompassSensor::readRawData(int16_t* x, int16_t* y, int16_t* z) {
 }
 
 void CompassSensor::update() {
-    if (!initialized) {
-        // Tenta reconectar periodicamente em background
-        initialize(nullptr);
-        return;
-    }
+    if (!initialized) return;
 
     // Rate limiting para não sobrecarregar o barramento (10Hz)
     if (millis() - lastReadTime < READ_INTERVAL_MS) {
@@ -158,8 +94,8 @@ void CompassSensor::update() {
         errorCount = 0; // Reset errors on success
     } else {
         errorCount++;
-        if (errorCount > 5) {
-            tankController.debugManager.logf(DebugManager::LOG_LEVEL_WARN, "Compass HMC5883L perdeu comunicação. Agendando reinicialização...");
+        if (errorCount >= SENSOR_ERROR_THRESHOLD) {
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Compass HMC5883L (0x%02X) perdeu comunicação após %d erros consecutivos. Sensor desabilitado.", HMC5883L_ADDRESS, SENSOR_ERROR_THRESHOLD);
             initialized = false;
             data.isValid = false;
         }

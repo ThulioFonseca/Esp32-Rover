@@ -21,26 +21,21 @@ static constexpr float TEMP_OFF   = 21.0f;    // Offset de temperatura (°C)
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-ImuSensor::ImuSensor() : i2c(&Wire), initialized(false), lastUpdateMs(0), 
+ImuSensor::ImuSensor() : i2c(&Wire), initialized(false), lastUpdateMs(0),
                          gyroBiasX(0), gyroBiasY(0), gyroBiasZ(0),
                          isCalibrating(false), calibrationSamples(0),
                          calibSumX(0), calibSumY(0), calibSumZ(0),
-                         errorCount(0), lastInitAttempt(0) {}
+                         errorCount(0) {}
 
 bool ImuSensor::initialize(TwoWire* wireInstance) {
     if (wireInstance != nullptr) {
         i2c = wireInstance;
     }
 
-    if (millis() - lastInitAttempt < INIT_RETRY_INTERVAL_MS) {
-        return false;
-    }
-    lastInitAttempt = millis();
-
     // Testa a comunicação enviando um byte e verificando ACK
     i2c->beginTransmission(Config::IMU_I2C_ADDR);
     if (i2c->endTransmission() != 0) {
-        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "MPU-6500 não respondeu no barramento I2C");
+        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "MPU-6500 (0x%02X) não detectado no barramento I2C.", Config::IMU_I2C_ADDR);
         initialized = false;
         data.isValid = false;
         return false;
@@ -85,10 +80,7 @@ void ImuSensor::startCalibration() {
 }
 
 void ImuSensor::update() {
-    if (!initialized) {
-        initialize(nullptr);
-        return;
-    }
+    if (!initialized) return;
 
     unsigned long now = millis();
     float dt = (now - lastUpdateMs) / 1000.0f;
@@ -134,8 +126,8 @@ void ImuSensor::readSensorData() {
     uint8_t buf[14];
     if (!readRegisters(REG_DATA_START, 14, buf)) {
         errorCount++;
-        if (errorCount > 5) {
-            tankController.debugManager.logf(DebugManager::LOG_LEVEL_WARN, "MPU-6500 perdeu comunicação. Agendando reinicialização...");
+        if (errorCount >= SENSOR_ERROR_THRESHOLD) {
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "MPU-6500 (0x%02X) perdeu comunicação após %d erros consecutivos. Sensor desabilitado.", Config::IMU_I2C_ADDR, SENSOR_ERROR_THRESHOLD);
             initialized = false;
             data.isValid = false;
         }
