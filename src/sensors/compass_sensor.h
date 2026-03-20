@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "../types/types.h"
+#include "../utils/kalman_filter.h"
 
 class CompassSensor {
 private:
@@ -16,6 +17,9 @@ private:
 
     uint8_t errorCount;
     static constexpr uint8_t SENSOR_ERROR_THRESHOLD = 5;
+
+    // Kalman 1D para suavização do heading (Q=0.001, R=0.5)
+    KalmanFilter1D _headingKalman;
 
     // HMC5883L Register Map
     static constexpr uint8_t REG_CONFIG_A = 0x00;

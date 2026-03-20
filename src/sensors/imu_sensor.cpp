@@ -22,7 +22,7 @@ static constexpr float TEMP_OFF   = 21.0f;    // Offset de temperatura (°C)
 // ─────────────────────────────────────────────────────────────────────────────
 
 ImuSensor::ImuSensor() : i2c(&Wire), initialized(false), lastUpdateMs(0),
-                         errorCount(0) {}
+                         errorCount(0), _compReady(false) {}
 
 bool ImuSensor::initialize(TwoWire* wireInstance) {
     if (wireInstance != nullptr) {
@@ -55,7 +55,8 @@ bool ImuSensor::initialize(TwoWire* wireInstance) {
     if (!writeRegister(REG_ACCEL_CONFIG, 0x08))  return false;
 
     lastUpdateMs = millis();
-    errorCount = 0;
+    errorCount   = 0;
+    _compReady   = false; // reinicia o filtro complementar
     initialized  = true;
     tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "MPU-6500 inicializado (±4g / ±500°/s / 100 Hz)");
     return true;
@@ -139,9 +140,21 @@ void ImuSensor::readSensorData() {
 // ── Ângulos Euler ─────────────────────────────────────────────────────────────
 
 void ImuSensor::computeAngles(float dt) {
-    (void)dt; // MPU-6500 não tem magnetômetro — apenas roll/pitch do acelerômetro
-    data.roll  = atan2f(data.accelY, data.accelZ) * RAD_TO_DEG;
-    data.pitch = atan2f(-data.accelX,
-                        sqrtf(data.accelY * data.accelY + data.accelZ * data.accelZ))
-                 * RAD_TO_DEG;
+    // Ângulos derivados do acelerômetro (referência absoluta, mas ruidosa em movimento)
+    float accelRoll  = atan2f(data.accelY, data.accelZ) * RAD_TO_DEG;
+    float accelPitch = atan2f(-data.accelX,
+                               sqrtf(data.accelY * data.accelY + data.accelZ * data.accelZ))
+                       * RAD_TO_DEG;
+
+    if (!_compReady) {
+        // Primeira medição: semeia o filtro diretamente do acelerômetro
+        data.roll  = accelRoll;
+        data.pitch = accelPitch;
+        _compReady = true;
+        return;
+    }
+
+    // Filtro complementar: gyro corrige curto prazo; accel ancora longo prazo
+    data.roll  = COMP_ALPHA * (data.roll  + data.gyroX * dt) + (1.0f - COMP_ALPHA) * accelRoll;
+    data.pitch = COMP_ALPHA * (data.pitch + data.gyroY * dt) + (1.0f - COMP_ALPHA) * accelPitch;
 }

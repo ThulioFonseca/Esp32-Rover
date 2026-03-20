@@ -4,7 +4,8 @@
 
 extern TankController tankController;
 
-CompassSensor::CompassSensor() : i2c(&Wire), initialized(false), lastReadTime(0), errorCount(0) {}
+CompassSensor::CompassSensor() : i2c(&Wire), initialized(false), lastReadTime(0), errorCount(0),
+                                 _headingKalman(0.001f, 0.5f) {}
 
 bool CompassSensor::initialize(TwoWire* wireInstance) {
     if (wireInstance != nullptr) {
@@ -31,6 +32,7 @@ bool CompassSensor::initialize(TwoWire* wireInstance) {
     writeRegister(REG_MODE, 0x00);
 
     errorCount = 0;
+    _headingKalman.reset(); // reinicia o filtro ao (re)inicializar
     initialized = true;
     data.isValid = true;
     tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Compass HMC5883L inicializado com sucesso.");
@@ -88,7 +90,19 @@ void CompassSensor::update() {
         if (headingRad < 0) headingRad += 2 * PI;
         if (headingRad > 2 * PI) headingRad -= 2 * PI;
 
-        data.heading = headingRad * 180.0f / M_PI;
+        float rawDeg = headingRad * 180.0f / M_PI;
+
+        // Trata wrap 0/360 para evitar saltos no Kalman ao cruzar o ponto norte
+        if (_headingKalman.ready()) {
+            float diff = rawDeg - _headingKalman.get();
+            if (diff >  180.0f) rawDeg -= 360.0f;
+            if (diff < -180.0f) rawDeg += 360.0f;
+        }
+        float filtered = _headingKalman.update(rawDeg);
+        if (filtered <    0.0f) filtered += 360.0f;
+        if (filtered >= 360.0f) filtered -= 360.0f;
+
+        data.heading = filtered;
         data.lastUpdate = millis();
         data.isValid = true;
         errorCount = 0; // Reset errors on success

@@ -39,6 +39,10 @@ private:
     uint8_t errorCount;
     static constexpr uint8_t SENSOR_ERROR_THRESHOLD = 5;
 
+    // Filtro complementar roll/pitch (gyro + acelerômetro)
+    bool  _compReady;                          // false até a primeira medição
+    static constexpr float COMP_ALPHA = 0.95f; // α: 0.95 → τ ≈ 380 ms a 50 Hz
+
     bool writeRegister(uint8_t reg, uint8_t value);
     bool readRegisters(uint8_t reg, uint8_t count, uint8_t* buf);
     void readSensorData();
