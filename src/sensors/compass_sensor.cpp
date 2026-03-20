@@ -1,5 +1,5 @@
 #include "compass_sensor.h"
-#include "../config/pins.h"
+#include "../config/config.h"
 #include "../controllers/tank_controller.h"
 
 extern TankController tankController;
@@ -11,12 +11,12 @@ bool CompassSensor::initialize(TwoWire* wireInstance) {
         i2c = wireInstance;
     }
 
-    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando Compass HMC5883L (I2C 0x%02X)...", HMC5883L_ADDRESS);
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando Compass HMC5883L (I2C 0x%02X)...", Config::COMPASS_I2C_ADDR);
 
     // Verifica presença no barramento
-    i2c->beginTransmission(HMC5883L_ADDRESS);
+    i2c->beginTransmission(Config::COMPASS_I2C_ADDR);
     if (i2c->endTransmission() != 0) {
-        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Compass HMC5883L (0x%02X) não detectado no barramento I2C.", HMC5883L_ADDRESS);
+        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Compass HMC5883L (0x%02X) não detectado no barramento I2C.", Config::COMPASS_I2C_ADDR);
         initialized = false;
         data.isValid = false;
         return false;
@@ -38,18 +38,18 @@ bool CompassSensor::initialize(TwoWire* wireInstance) {
 }
 
 bool CompassSensor::writeRegister(uint8_t reg, uint8_t value) {
-    i2c->beginTransmission(HMC5883L_ADDRESS);
+    i2c->beginTransmission(Config::COMPASS_I2C_ADDR);
     i2c->write(reg);
     i2c->write(value);
     return i2c->endTransmission() == 0;
 }
 
 bool CompassSensor::readRawData(int16_t* x, int16_t* y, int16_t* z) {
-    i2c->beginTransmission(HMC5883L_ADDRESS);
+    i2c->beginTransmission(Config::COMPASS_I2C_ADDR);
     i2c->write(REG_DATA_X_MSB);
     if (i2c->endTransmission() != 0) return false;
 
-    i2c->requestFrom(HMC5883L_ADDRESS, (uint8_t)6);
+    i2c->requestFrom(Config::COMPASS_I2C_ADDR, (uint8_t)6);
     if (i2c->available() >= 6) {
         // HMC5883L armazena X, Z, Y (nessa ordem!)
         *x = (int16_t)(i2c->read() << 8 | i2c->read());
@@ -95,7 +95,7 @@ void CompassSensor::update() {
     } else {
         errorCount++;
         if (errorCount >= SENSOR_ERROR_THRESHOLD) {
-            tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Compass HMC5883L (0x%02X) perdeu comunicação após %d erros consecutivos. Sensor desabilitado.", HMC5883L_ADDRESS, SENSOR_ERROR_THRESHOLD);
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Compass HMC5883L (0x%02X) perdeu comunicação após %d erros consecutivos. Sensor desabilitado.", Config::COMPASS_I2C_ADDR, SENSOR_ERROR_THRESHOLD);
             initialized = false;
             data.isValid = false;
         }

@@ -20,7 +20,7 @@ namespace Pins {
   constexpr uint8_t BATTERY_VOLTAGE = 34;
   constexpr uint8_t TEMPERATURE = 35;
   
-  // I2C (futuro)
+  // I2C — barramento único compartilhado (IMU + Compass + sensores futuros)
   constexpr uint8_t SDA = 21;
   constexpr uint8_t SCL = 22;
   
@@ -37,9 +37,6 @@ namespace Pins {
   constexpr uint8_t PIN_GPS_RX = 4;
   constexpr uint8_t PIN_GPS_TX = 5; // Nota: Compartilhado com SPI_CS, use com cautela se usar SPI futuramente
 
-  // I2C 1 (Magnetômetro Externo no GPS)
-  constexpr uint8_t COMPASS_SDA = 25;
-  constexpr uint8_t COMPASS_SCL = 26;
 }
 
 #endif

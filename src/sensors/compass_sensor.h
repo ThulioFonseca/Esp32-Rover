@@ -17,9 +17,6 @@ private:
     uint8_t errorCount;
     static constexpr uint8_t SENSOR_ERROR_THRESHOLD = 5;
 
-    // HMC5883L I2C Address
-    static constexpr uint8_t HMC5883L_ADDRESS = 0x1E; 
-
     // HMC5883L Register Map
     static constexpr uint8_t REG_CONFIG_A = 0x00;
     static constexpr uint8_t REG_CONFIG_B = 0x01;

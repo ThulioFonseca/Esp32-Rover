@@ -27,15 +27,9 @@ bool TankController::initialize() {
         return false;
     }
 
-    // Inicialização dos barramentos I2C
-    debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando I2C 0 (IMU) nos pinos SDA=%d, SCL=%d", Pins::SDA, Pins::SCL);
-    Wire.begin(Pins::SDA, Pins::SCL, Config::IMU_I2C_FREQ_HZ);
-    
-    debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando I2C 1 (Compass) nos pinos SDA=%d, SCL=%d", Pins::COMPASS_SDA, Pins::COMPASS_SCL);
-    pinMode(Pins::COMPASS_SDA, INPUT_PULLUP);
-    pinMode(Pins::COMPASS_SCL, INPUT_PULLUP);
-    // Usa uma frequência de relógio extremamente lenta (10 kHz) para compensar a ausência de resistores de pull-up físicos fortes.
-    Wire1.begin(Pins::COMPASS_SDA, Pins::COMPASS_SCL, 10000);
+    // Barramento I2C único compartilhado — IMU, Compass e sensores futuros
+    debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando I2C SDA=%d SCL=%d @ %lu Hz", Pins::SDA, Pins::SCL, Config::I2C_FREQ_HZ);
+    Wire.begin(Pins::SDA, Pins::SCL, Config::I2C_FREQ_HZ);
 
     // Sensores são opcionais — falha na inicialização não trava o boot.
     if (Config::IMU_ENABLED) {
@@ -54,7 +48,7 @@ bool TankController::initialize() {
         }
 
         debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando CompassSensor...");
-        if (!compassSensor.initialize(&Wire1)) {
+        if (!compassSensor.initialize(&Wire)) {
             debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "CompassSensor (HMC5883L, I2C 0x1E) não detectado — desabilitado até próximo reboot.");
         }
     }

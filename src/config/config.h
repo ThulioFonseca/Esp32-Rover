@@ -50,11 +50,17 @@ namespace Config {
   constexpr unsigned long SERIAL_BAUD = 115200;
   constexpr uint8_t IBUS_MODE = 1; // IBusBM: modo 1 = apenas leitura
 
+  // I2C — barramento único compartilhado (pinos 21/22)
+  // Para Fast Mode (400 kHz) com pull-ups de 2.2 kΩ, trocar para 400000.
+  constexpr uint32_t I2C_FREQ_HZ = 100000; // Standard Mode (100 kHz)
+
   // IMU (MPU-9250 / 6500 / 9255 via I2C)
   // AD0 = LOW  → 0x68 | AD0 = HIGH → 0x69
-  constexpr uint8_t IMU_I2C_ADDR     = 0x68; // AD0 = LOW (GND)
-  constexpr uint32_t IMU_I2C_FREQ_HZ = 100000; // Standard Mode (100 kHz) — mais estável em protoboard
+  constexpr uint8_t IMU_I2C_ADDR = 0x68; // AD0 = LOW (GND)
   extern bool IMU_ENABLED;
+
+  // Compass (HMC5883L via I2C)
+  constexpr uint8_t COMPASS_I2C_ADDR = 0x1E;
 
   // GPS (Neo-7M / M8N)
   constexpr unsigned long GPS_BAUD = 9600;
