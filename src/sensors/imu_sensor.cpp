@@ -103,9 +103,8 @@ void ImuSensor::readSensorData() {
     uint8_t buf[14];
     if (!readRegisters(REG_DATA_START, 14, buf)) {
         errorCount++;
-        if (errorCount >= SENSOR_ERROR_THRESHOLD) {
-            tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "MPU-6500 (0x%02X) perdeu comunicação após %d erros consecutivos. Sensor desabilitado.", Config::IMU_I2C_ADDR, SENSOR_ERROR_THRESHOLD);
-            initialized = false;
+        if (errorCount == SENSOR_ERROR_THRESHOLD) {
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "MPU-6500 (0x%02X) perdeu comunicação após %d erros consecutivos. Dados inválidos — aguardando recuperação.", Config::IMU_I2C_ADDR, SENSOR_ERROR_THRESHOLD);
             data.isValid = false;
         }
         return;

@@ -94,9 +94,8 @@ void CompassSensor::update() {
         errorCount = 0; // Reset errors on success
     } else {
         errorCount++;
-        if (errorCount >= SENSOR_ERROR_THRESHOLD) {
-            tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Compass HMC5883L (0x%02X) perdeu comunicação após %d erros consecutivos. Sensor desabilitado.", Config::COMPASS_I2C_ADDR, SENSOR_ERROR_THRESHOLD);
-            initialized = false;
+        if (errorCount == SENSOR_ERROR_THRESHOLD) {
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Compass HMC5883L (0x%02X) perdeu comunicação após %d erros consecutivos. Dados inválidos — aguardando recuperação.", Config::COMPASS_I2C_ADDR, SENSOR_ERROR_THRESHOLD);
             data.isValid = false;
         }
     }
