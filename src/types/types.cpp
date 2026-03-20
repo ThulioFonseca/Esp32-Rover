@@ -26,7 +26,7 @@ namespace Types {
   ImuData::ImuData()
     : accelX(0.0f), accelY(0.0f), accelZ(0.0f),
       gyroX(0.0f),  gyroY(0.0f),  gyroZ(0.0f),
-      roll(0.0f), pitch(0.0f), yaw(0.0f),
+      roll(0.0f), pitch(0.0f),
       temperature(0.0f),
       isValid(false), lastUpdate(0) {}
 
@@ -37,5 +37,6 @@ namespace Types {
   GpsData::GpsData()
     : latitude(0.0f), longitude(0.0f), altitude(0.0f),
       speed(0.0f), course(0.0f), satellites(0), hdop(0.0f),
-      dateTime(""), isValid(false), lastUpdate(0) {}
+      dateTime(""), timeHour(0), timeMinute(0), timeSecond(0),
+      isValid(false), lastUpdate(0) {}
 }

@@ -242,7 +242,6 @@ void WebServerManager::setupRoutes() {
         JsonObject angles = doc["angles"].to<JsonObject>();
         angles["roll"]  = imuSnapshot.roll;
         angles["pitch"] = imuSnapshot.pitch;
-        angles["yaw"]   = imuSnapshot.yaw;
 
         // GPS Data
         JsonObject gps = doc["gps"].to<JsonObject>();
@@ -298,24 +297,6 @@ void WebServerManager::setupRoutes() {
         String response;
         serializeJson(doc, response);
         request->send(200, "application/json", response);
-    });
-
-    // Calibrate IMU API
-    server.on("/api/calibrate-imu", HTTP_POST, [](AsyncWebServerRequest *request){
-        if (tankMutex == nullptr) {
-            request->send(503, "application/json", "{\"error\":\"system not ready\"}");
-            return;
-        }
-        
-        // A calibração manipula flags simples de estado da IMU. Pode ser feito de forma tolerante,
-        // mas vamos manter o Try-Lock com 0 Ticks pra ser Async Safe. 
-        if (xSemaphoreTake(tankMutex, 0) == pdTRUE) {
-            tankController.calibrateImu();
-            xSemaphoreGive(tankMutex);
-            request->send(200, "application/json", "{\"status\":\"started\"}");
-        } else {
-            request->send(503, "application/json", "{\"error\":\"system busy\"}");
-        }
     });
 
     server.on("/api/settings", HTTP_POST, [](AsyncWebServerRequest *request){}, NULL,
@@ -396,15 +377,7 @@ void WebServerManager::onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *c
                 data[len] = 0; // null-terminate
                 String msg = (char*)data;
 
-                if (msg == "calibrate") {
-                    if (tankMutex != nullptr && xSemaphoreTake(tankMutex, 0) == pdTRUE) {
-                        tankController.calibrateImu();
-                        xSemaphoreGive(tankMutex);
-                        client->text("{\"t\":\"ack\",\"cmd\":\"calibrate\",\"s\":\"ok\"}");
-                    } else {
-                        client->text("{\"t\":\"ack\",\"cmd\":\"calibrate\",\"s\":\"busy\"}");
-                    }
-                }
+
             }
             break;
         }
@@ -428,8 +401,8 @@ size_t WebServerManager::wsClientCount() const {
  *   - Sem String temporária que causa move semantics perigosa
  */
 
-// ── Fase 3: Buffer binário estático (122 bytes, little-endian) ───────────────
-// Protocolo: packet_type(1) | IMU(41) | GPS(29) | Compass(17) | Motors(8) | CH(21) | Sys(5)
+// ── Fase 3: Buffer binário estático (121 bytes, little-endian) ───────────────
+// Protocolo: packet_type(1) | IMU(37) | GPS(32) | Compass(17) | Motors(8) | CH(21) | Sys(5)
 // Elimina serialização JSON (economiza ~230 bytes/frame × 20Hz = ~4.5 KB/s de banda)
 static uint8_t wsBinaryBuffer[Config::WS_BINARY_FRAME_SIZE];
 
@@ -469,28 +442,29 @@ void WebServerManager::broadcastSensorData() {
 
     writeU8(0x01); // packet_type = sensor frame
 
-    // IMU (41 bytes: offset 1–41)
-    writeF32(imu.roll);   writeF32(imu.pitch);  writeF32(imu.yaw);
+    // IMU (37 bytes: offset 1–37) — yaw removido (MPU-6500 sem magnetômetro)
+    writeF32(imu.roll);   writeF32(imu.pitch);
     writeF32(imu.accelX); writeF32(imu.accelY); writeF32(imu.accelZ);
     writeF32(imu.gyroX);  writeF32(imu.gyroY);  writeF32(imu.gyroZ);
     writeF32(imu.temperature);
     writeU8(imu.isValid ? 1 : 0);
 
-    // GPS (29 bytes: offset 42–70)
+    // GPS (32 bytes: offset 38–69)
     writeF32(gps.latitude);  writeF32(gps.longitude); writeF32(gps.altitude);
     writeF32(gps.speed);     writeF32(gps.course);
     writeU32(gps.satellites); writeF32(gps.hdop);
+    writeU8(gps.timeHour); writeU8(gps.timeMinute); writeU8(gps.timeSecond);
     writeU8(gps.isValid ? 1 : 0);
 
-    // Compass (17 bytes: offset 71–87)
+    // Compass (17 bytes: offset 70–86)
     writeF32(compass.heading);
     writeF32(compass.x); writeF32(compass.y); writeF32(compass.z);
     writeU8(compass.isValid ? 1 : 0);
 
-    // Motors (8 bytes: offset 88–95)
+    // Motors (8 bytes: offset 87–94)
     writeF32(motors.left); writeF32(motors.right);
 
-    // RC Channels — 10 × int16 + valid (21 bytes: offset 96–116)
+    // RC Channels — 10 × int16 + valid (21 bytes: offset 95–115)
     writeI16((int16_t)channels.steering);
     writeI16((int16_t)channels.aux[0]);
     writeI16((int16_t)channels.throttle);
@@ -503,11 +477,11 @@ void WebServerManager::broadcastSensorData() {
     writeI16((int16_t)channels.aux[7]);
     writeU8(channels.isValid ? 1 : 0);
 
-    // System (5 bytes: offset 117–121)
+    // System (5 bytes: offset 116–120)
     writeU8(armed ? 1 : 0);
     writeU32(millis());
 
     // ── 3. Envia como frame binário WebSocket ──
-    // p - wsBinaryBuffer deve ser exatamente 122 bytes
+    // p - wsBinaryBuffer deve ser exatamente 121 bytes
     ws.binaryAll(wsBinaryBuffer, (size_t)(p - wsBinaryBuffer));
 }

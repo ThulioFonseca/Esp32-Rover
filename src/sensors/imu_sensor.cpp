@@ -22,9 +22,6 @@ static constexpr float TEMP_OFF   = 21.0f;    // Offset de temperatura (°C)
 // ─────────────────────────────────────────────────────────────────────────────
 
 ImuSensor::ImuSensor() : i2c(&Wire), initialized(false), lastUpdateMs(0),
-                         gyroBiasX(0), gyroBiasY(0), gyroBiasZ(0),
-                         isCalibrating(false), calibrationSamples(0),
-                         calibSumX(0), calibSumY(0), calibSumZ(0),
                          errorCount(0) {}
 
 bool ImuSensor::initialize(TwoWire* wireInstance) {
@@ -57,26 +54,11 @@ bool ImuSensor::initialize(TwoWire* wireInstance) {
     // Acelerômetro: ±4g → 8192 LSB/g
     if (!writeRegister(REG_ACCEL_CONFIG, 0x08))  return false;
 
-    // Inicia a calibração assíncrona do giroscópio para remover o bias (zero-rate offset)
-    startCalibration();
-
     lastUpdateMs = millis();
     errorCount = 0;
     initialized  = true;
     tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "MPU-6500 inicializado (±4g / ±500°/s / 100 Hz)");
     return true;
-}
-
-void ImuSensor::startCalibration() {
-    if (!initialized) return;
-    
-    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Iniciando calibração do IMU. Mantenha o rover parado...");
-    isCalibrating = true;
-    calibrationSamples = 0;
-    calibSumX = 0;
-    calibSumY = 0;
-    calibSumZ = 0;
-    data.yaw = 0.0f; // Reseta o heading
 }
 
 void ImuSensor::update() {
@@ -85,11 +67,6 @@ void ImuSensor::update() {
     unsigned long now = millis();
     float dt = (now - lastUpdateMs) / 1000.0f;
     lastUpdateMs = now;
-
-    if (isCalibrating) {
-        processCalibration();
-        return; // Durante a calibração, não atualiza os ângulos normais
-    }
 
     readSensorData();
     computeAngles(dt);
@@ -149,10 +126,10 @@ void ImuSensor::readSensorData() {
     // Temperatura: TEMP_OUT / 321.0 + 21.0 (MPU-6500 datasheet §4.16)
     data.temperature = toInt16(buf[6], buf[7]) / TEMP_SENS + TEMP_OFF;
 
-    // Giroscópio: converte raw → deg/s e aplica compensação do bias
-    data.gyroX = (toInt16(buf[8],  buf[9])  / GYRO_SENS) - gyroBiasX;
-    data.gyroY = (toInt16(buf[10], buf[11]) / GYRO_SENS) - gyroBiasY;
-    data.gyroZ = (toInt16(buf[12], buf[13]) / GYRO_SENS) - gyroBiasZ;
+    // Giroscópio: converte raw → deg/s
+    data.gyroX = toInt16(buf[8],  buf[9])  / GYRO_SENS;
+    data.gyroY = toInt16(buf[10], buf[11]) / GYRO_SENS;
+    data.gyroZ = toInt16(buf[12], buf[13]) / GYRO_SENS;
 
     // MPU-6500 não tem magnetômetro — campos mag permanecem em 0.0
 
@@ -163,52 +140,9 @@ void ImuSensor::readSensorData() {
 // ── Ângulos Euler ─────────────────────────────────────────────────────────────
 
 void ImuSensor::computeAngles(float dt) {
-    // Roll e pitch do acelerômetro (precisos em regime quasi-estático)
+    (void)dt; // MPU-6500 não tem magnetômetro — apenas roll/pitch do acelerômetro
     data.roll  = atan2f(data.accelY, data.accelZ) * RAD_TO_DEG;
     data.pitch = atan2f(-data.accelX,
                         sqrtf(data.accelY * data.accelY + data.accelZ * data.accelZ))
                  * RAD_TO_DEG;
-
-    // Aplica deadband (zona morta) no giroscópio Z para evitar drift por micro-ruídos estáticos
-    float gz = data.gyroZ;
-    if (abs(gz) < 0.5f) { // Se a rotação for menor que 0.5 deg/s, considera como parado
-        gz = 0.0f;
-    }
-
-    // Yaw integrado do giroscópio Z (sem referência absoluta → drift longo prazo esperado, 
-    // mas drift estático de curto prazo agora está mitigado pelo bias+deadband)
-    data.yaw += gz * dt;
-    if (data.yaw >  180.0f) data.yaw -= 360.0f;
-    if (data.yaw < -180.0f) data.yaw += 360.0f;
-}
-
-// ── Calibração Assíncrona ─────────────────────────────────────────────────────
-
-void ImuSensor::processCalibration() {
-    uint8_t buf[6];
-    // Lê apenas os registradores do giroscópio (0x43)
-    if (readRegisters(0x43, 6, buf)) {
-        // Ignora as primeiras 50 amostras (estabilização térmica/filtros)
-        if (calibrationSamples < 50) {
-            calibrationSamples++;
-            return;
-        }
-
-        calibSumX += (int16_t)((buf[0] << 8) | buf[1]);
-        calibSumY += (int16_t)((buf[2] << 8) | buf[3]);
-        calibSumZ += (int16_t)((buf[4] << 8) | buf[5]);
-        
-        calibrationSamples++;
-
-        // Verifica se terminou (50 descartadas + CALIBRATION_SAMPLES_NEEDED úteis)
-        if (calibrationSamples >= (50 + CALIBRATION_SAMPLES_NEEDED)) {
-            gyroBiasX = (calibSumX / (float)CALIBRATION_SAMPLES_NEEDED) / GYRO_SENS;
-            gyroBiasY = (calibSumY / (float)CALIBRATION_SAMPLES_NEEDED) / GYRO_SENS;
-            gyroBiasZ = (calibSumZ / (float)CALIBRATION_SAMPLES_NEEDED) / GYRO_SENS;
-            
-            isCalibrating = false;
-            
-            tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Calibração concluída! Bias Z: %.4f deg/s", gyroBiasZ);
-        }
-    }
 }

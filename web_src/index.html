@@ -106,7 +106,6 @@
                         <h3>Orientation</h3>
                         <div class="sensor-row"><span class="label">Roll</span><div class="sensor-data"><span class="value" id="imu-roll">--</span><span class="unit">°</span></div></div>
                         <div class="sensor-row"><span class="label">Pitch</span><div class="sensor-data"><span class="value" id="imu-pitch">--</span><span class="unit">°</span></div></div>
-                        <div class="sensor-row"><span class="label">Yaw</span><div class="sensor-data"><span class="value" id="imu-yaw">--</span><span class="unit">°</span></div></div>
                         <div class="sensor-row" style="margin-top:12px;"><span class="label">Temperature</span><div class="sensor-data"><span class="value" id="imu-temp">--</span><span class="unit">°C</span></div></div>
                     </div>
                     <div class="card">
@@ -123,12 +122,6 @@
                     </div>
                 </div>
 
-                <div style="margin-top: 20px;">
-                    <button id="btn-calibrate" onclick="calibrateIMU()" class="btn-primary" style="width: 100%; background: transparent; border: 1px solid var(--accent-color); color: var(--accent-color);">
-                        CALIBRATE IMU (ZERO YAW)
-                    </button>
-                    <p style="font-size: 0.8em; color: var(--text-muted); text-align: center; margin-top: 8px;">Keep the rover completely still before calibrating.</p>
-                </div>
             </div>
 
             <div id="hud-tab" class="tab-content">

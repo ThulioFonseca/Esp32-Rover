@@ -49,7 +49,6 @@ public:
   Types::SystemState          getSystemState()    const;
   bool                        isSystemArmed()     const;
 
-  void calibrateImu(); // Dispara calibração assíncrona
   String getSystemLogs(); // Retorna o buffer circular de logs
   void clearSystemLogs();
 

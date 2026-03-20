@@ -63,6 +63,14 @@ void GpsSensor::update() {
         }
 
         // Data e hora
+        if (gps.time.isValid()) {
+            int hour = (int)gps.time.hour() + Config::GPS_TIMEZONE_OFFSET_HOURS;
+            if (hour < 0)  hour += 24;
+            if (hour > 23) hour -= 24;
+            data.timeHour   = (uint8_t)hour;
+            data.timeMinute = gps.time.minute();
+            data.timeSecond = gps.time.second();
+        }
         if (gps.date.isValid() && gps.time.isValid()) {
             data.dateTime = getFormattedDateTime();
         }

@@ -17,7 +17,7 @@ const DOM = {
     compassTape: null,
 
     // Sensors Tab Elements
-    imuRoll: null, imuPitch: null, imuYaw: null, imuTemp: null,
+    imuRoll: null, imuPitch: null, imuTemp: null,
     accelX: null, accelY: null, accelZ: null,
     gyroX: null, gyroY: null, gyroZ: null,
     compHeading: null, compX: null, compY: null, compZ: null,
@@ -137,7 +137,7 @@ function connectWebSocket() {
 // packet_type=0x01: sensor frame. Após parse, reutiliza handleWsSensorData().
 
 function parseBinaryFrame(buf) {
-    if (buf.byteLength < 122) return;
+    if (buf.byteLength < 121) return;
     const v = new DataView(buf);
     const f32 = function(o) { return v.getFloat32(o, true); };
     const u32 = function(o) { return v.getUint32(o, true); };
@@ -147,33 +147,40 @@ function parseBinaryFrame(buf) {
     if (u8(0) !== 0x01) return; // tipo desconhecido
 
     // Reconstrói o mesmo formato de payload compacto que handleWsSensorData espera
+    // IMU (37 bytes, offset 1-37): roll(1) pitch(5) accelX(9) accelY(13) accelZ(17) gyroX(21) gyroY(25) gyroZ(29) temp(33) valid(37)
+    // GPS (32 bytes, offset 38-69): lat(38) lng(42) alt(46) speed(50) course(54) sats(58) hdop(62) timeH(66) timeM(67) timeS(68) valid(69)
+    // Compass (17 bytes, offset 70-86): heading(70) x(74) y(78) z(82) valid(86)
+    // Motors (8 bytes, offset 87-94): left(87) right(91)
+    // Channels (21 bytes, offset 95-115): 10×i16 + valid(115)
+    // System (5 bytes, offset 116-120): armed(116) uptime(117)
+    const th = u8(66), tm_ = u8(67), ts = u8(68);
     const d = {
         imu: {
-            v:  u8(41) !== 0,
-            r:  f32(1),  p:  f32(5),  y:  f32(9),
-            t:  f32(37),
-            ax: f32(13), ay: f32(17), az: f32(21),
-            gx: f32(25), gy: f32(29), gz: f32(33)
+            v:  u8(37) !== 0,
+            r:  f32(1),  p:  f32(5),
+            t:  f32(33),
+            ax: f32(9),  ay: f32(13), az: f32(17),
+            gx: f32(21), gy: f32(25), gz: f32(29)
         },
         gps: {
-            v:  u8(70) !== 0,
-            la: f32(42), ln: f32(46), al: f32(50),
-            sp: f32(54), cr: f32(58),
-            sa: u32(62), hd: f32(66),
-            tm: ''
+            v:  u8(69) !== 0,
+            la: f32(38), ln: f32(42), al: f32(46),
+            sp: f32(50), cr: f32(54),
+            sa: u32(58), hd: f32(62),
+            tm: String(th).padStart(2,'0') + ':' + String(tm_).padStart(2,'0') + ':' + String(ts).padStart(2,'0')
         },
         cmp: {
-            v: u8(87) !== 0,
-            h: f32(71), x: f32(75), y: f32(79), z: f32(83)
+            v: u8(86) !== 0,
+            h: f32(70), x: f32(74), y: f32(78), z: f32(82)
         },
-        mot: { l: f32(88), r: f32(92) },
+        mot: { l: f32(87), r: f32(91) },
         ch: [
-            i16(96),  i16(98),  i16(100), i16(102), i16(104),
-            i16(106), i16(108), i16(110), i16(112), i16(114)
+            i16(95),  i16(97),  i16(99),  i16(101), i16(103),
+            i16(105), i16(107), i16(109), i16(111), i16(113)
         ],
-        cv:  u8(116) !== 0,
-        arm: u8(117) !== 0,
-        up:  u32(118)
+        cv:  u8(115) !== 0,
+        arm: u8(116) !== 0,
+        up:  u32(117)
     };
 
     handleWsSensorData(d);
@@ -189,7 +196,7 @@ function handleWsSensorData(d) {
         temperature: parseFloat(d.imu.t),
         accel: { x: parseFloat(d.imu.ax), y: parseFloat(d.imu.ay), z: parseFloat(d.imu.az) },
         gyro:  { x: parseFloat(d.imu.gx), y: parseFloat(d.imu.gy), z: parseFloat(d.imu.gz) },
-        angles: { roll: parseFloat(d.imu.r), pitch: parseFloat(d.imu.p), yaw: parseFloat(d.imu.y) },
+        angles: { roll: parseFloat(d.imu.r), pitch: parseFloat(d.imu.p) },
         gps: {
             valid: d.gps.v,
             lat: parseFloat(d.gps.la || 0), lng: parseFloat(d.gps.ln || 0),
@@ -275,7 +282,6 @@ function updateSensorsFromData(d) {
 
         if(DOM.imuRoll)  DOM.imuRoll.innerText  = formatSensorValue(d.angles.roll);
         if(DOM.imuPitch) DOM.imuPitch.innerText = formatSensorValue(d.angles.pitch);
-        if(DOM.imuYaw)   DOM.imuYaw.innerText   = formatSensorValue(d.angles.yaw);
         if(DOM.imuTemp)  DOM.imuTemp.innerText  = d.temperature.toFixed(1);
 
         if(DOM.accelX) DOM.accelX.innerText = formatSensorValue(d.accel.x);
@@ -317,8 +323,7 @@ function updateSensorsFromData(d) {
             if(DOM.gpsCourse) DOM.gpsCourse.innerText = d.gps.course.toFixed(1);
             if(DOM.gpsHdop)   DOM.gpsHdop.innerText   = d.gps.hdop.toFixed(2);
             if (d.gps.time && DOM.gpsTime) {
-                var timeStr = d.gps.time.split('T');
-                DOM.gpsTime.innerText = (timeStr.length === 2) ? timeStr[1].split('-')[0] : d.gps.time;
+                DOM.gpsTime.innerText = d.gps.time;
             }
         } else {
             if(gpsStatus) {
@@ -547,45 +552,6 @@ function clearSystemLogs() {
         .catch(function() {});
 }
 
-function calibrateIMU() {
-    const btn = document.getElementById('btn-calibrate');
-    const originalText = btn.innerText;
-
-    btn.innerText = "CALIBRATING...";
-    btn.disabled = true;
-    btn.style.opacity = "0.5";
-
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send('calibrate');
-    } else {
-        fetch('/api/calibrate-imu', { method: 'POST' })
-        .then(function(r) { return r.json(); })
-        .then(function(d) {
-            setTimeout(function() {
-                btn.innerText = "CALIBRATION COMPLETE";
-                btn.style.color = "var(--black)";
-                btn.style.background = "var(--neon-chartreuse)";
-
-                setTimeout(function() {
-                    btn.innerText = originalText;
-                    btn.disabled = false;
-                    btn.style.opacity = "1";
-                    btn.style.color = "var(--accent-color)";
-                    btn.style.background = "transparent";
-                }, 3000);
-            }, 2500);
-        })
-        .catch(function() {
-            btn.innerText = "ERROR";
-            setTimeout(function() {
-                btn.innerText = originalText;
-                btn.disabled = false;
-                btn.style.opacity = "1";
-            }, 2000);
-        });
-    }
-}
-
 function toggleArmed() {
     const enabled = document.getElementById('armed-toggle').checked;
     updateArmedStyle(enabled);
@@ -750,7 +716,6 @@ function updateHUD(data) {
 
     const pitch = data.angles.pitch;
     const roll  = data.angles.roll;
-    const yaw   = data.angles.yaw;
     const speed = data.gps.valid ? data.gps.speed : 0;
 
     // Alerta de inclinação crítica
@@ -781,13 +746,16 @@ function updateHUD(data) {
 
     const speedDash = Math.min((speed / 50) * 222, 222);
     document.getElementById('arc-speed').setAttribute('stroke-dasharray', speedDash + ' 400');
-    document.getElementById('center-spd').innerText = speed.toFixed(1);
+    document.getElementById('center-spd').textContent = data.gps.valid ? speed.toFixed(1) : '--';
 
-    // Fase 2: CSS transform para compass tape
+    // CSS transform para compass tape — usa heading do compass externo (HMC5883L)
+    const compassHeading = data.compass.heading;
+    const compassValid   = data.compass.valid;
     const fullCircleWidth = 12 * 40;
-    const yawOffset = -fullCircleWidth - ((yaw / 360) * fullCircleWidth);
+    const yawOffset = -fullCircleWidth - ((compassHeading / 360) * fullCircleWidth);
     if (DOM.compassTape) {
         DOM.compassTape.style.transform = 'translateX(' + yawOffset + 'px)';
+        DOM.compassTape.style.filter = compassValid ? '' : 'sepia(1) saturate(5) hue-rotate(-20deg)';
     }
 
     // Motores
@@ -828,8 +796,7 @@ function updateHUD(data) {
         if(DOM.hudGpsSpd)  DOM.hudGpsSpd.innerText  = data.gps.speed.toFixed(1);
 
         if (data.gps.time && DOM.hudSysTimeLocal) {
-            const timeParts = data.gps.time.split('T');
-            if (timeParts[1]) DOM.hudSysTimeLocal.innerText = timeParts[1].split('Z')[0] + ' Z';
+            DOM.hudSysTimeLocal.innerText = data.gps.time + ' UTC';
         }
     }
 
@@ -881,7 +848,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Sensors Tab Elements
     DOM.imuRoll    = document.getElementById('imu-roll');
     DOM.imuPitch   = document.getElementById('imu-pitch');
-    DOM.imuYaw     = document.getElementById('imu-yaw');
     DOM.imuTemp    = document.getElementById('imu-temp');
     DOM.accelX     = document.getElementById('accel-x');
     DOM.accelY     = document.getElementById('accel-y');

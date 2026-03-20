@@ -27,7 +27,7 @@ namespace Config {
   constexpr int           TANK_MUTEX_TIMEOUT_MS = 5;    // Timeout do try-lock no tankControlTask
 
   // WebSocket
-  constexpr size_t WS_BINARY_FRAME_SIZE = 122; // Tamanho fixo do frame binário (ver broadcastSensorData)
+  constexpr size_t WS_BINARY_FRAME_SIZE = 121; // Tamanho fixo do frame binário (ver broadcastSensorData)
 
   // Configurações de Rede (Persistentes via NVS)
   extern uint8_t WIFI_MODE; // 0 = AP, 1 = STA

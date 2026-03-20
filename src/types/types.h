@@ -54,8 +54,8 @@ namespace Types {
     // Giroscópio (deg/s)
     float gyroX, gyroY, gyroZ;
 
-    // Ângulos Euler calculados pelo filtro de fusão interno (graus)
-    float roll, pitch, yaw;
+    // Ângulos Euler (graus) — yaw removido (MPU-6500 não tem magnetômetro)
+    float roll, pitch;
 
     float temperature; // °C
 
@@ -83,7 +83,10 @@ namespace Types {
     float course;   // graus
     uint32_t satellites;
     float hdop;
-    String dateTime; // formato ISO 8601 com timezone (ex: 2026-12-01T15:30:00-03:00)
+    String dateTime;          // formato ISO 8601 (usado pelo JSON API)
+    uint8_t timeHour;         // hora UTC (0-23) — incluído no frame binário
+    uint8_t timeMinute;       // minuto (0-59)
+    uint8_t timeSecond;       // segundo (0-59)
 
     bool isValid;
     unsigned long lastUpdate;

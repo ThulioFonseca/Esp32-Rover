@@ -37,7 +37,7 @@ bool TankController::initialize() {
         if (!imuSensor.initialize(&Wire)) {
             debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "ImuSensor (MPU-6500, I2C 0x%02X) não detectado — desabilitado até próximo reboot.", Config::IMU_I2C_ADDR);
         } else {
-            debugManager.logf(DebugManager::LOG_LEVEL_INFO, "ImuSensor inicializado — iniciando calibração automática...");
+            debugManager.logf(DebugManager::LOG_LEVEL_INFO, "ImuSensor inicializado.");
         }
     }
 
@@ -121,10 +121,6 @@ Types::SystemState TankController::getSystemState() const {
 
 bool TankController::isSystemArmed() const {
     return systemArmed;
-}
-
-void TankController::calibrateImu() {
-    imuSensor.startCalibration();
 }
 
 String TankController::getSystemLogs() {
