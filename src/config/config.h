@@ -58,6 +58,7 @@ namespace Config {
 
   // GPS (Neo-7M / M8N)
   constexpr unsigned long GPS_BAUD = 9600;
+  constexpr int8_t GPS_TIMEZONE_OFFSET_HOURS = -3; // GMT-3 (Brasília)
   extern bool GPS_ENABLED;
 }
 

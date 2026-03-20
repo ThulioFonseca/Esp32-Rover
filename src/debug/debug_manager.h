@@ -2,6 +2,7 @@
 #define DEBUG_MANAGER_H
 
 #include "../types/types.h"
+#include "freertos/semphr.h"
 
 class DebugManager {
 private:
@@ -42,6 +43,7 @@ private:
   int logHead;
   int logTail;
   int logCount;
+  SemaphoreHandle_t serialMutex;
 };
 
 #endif

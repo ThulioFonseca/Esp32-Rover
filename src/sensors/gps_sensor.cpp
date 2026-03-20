@@ -78,15 +78,19 @@ void GpsSensor::update() {
 
 String GpsSensor::getFormattedDateTime() {
     char dateTimeBuffer[30];
-    // Formata no padrão ISO 8601 com timezone fixo (ex: GMT-3)
-    // Se desejar hora UTC, não subtraia do gps.time.hour() e use "Z" em vez de "-03:00"
-    int hour = gps.time.hour() - 3;
-    if (hour < 0) hour += 24; // Correção simples de dia não tratada aqui de forma complexa
-    
-    snprintf(dateTimeBuffer, sizeof(dateTimeBuffer), "%04d-%02d-%02dT%02d:%02d:%02d-03:00",
-             gps.date.year(), gps.date.month(), gps.date.day(), 
-             hour, gps.time.minute(), gps.time.second());
-             
+    // Formata no padrão ISO 8601 com timezone configurável via Config::GPS_TIMEZONE_OFFSET_HOURS
+    int hour = gps.time.hour() + Config::GPS_TIMEZONE_OFFSET_HOURS;
+    if (hour < 0)  hour += 24;
+    if (hour > 23) hour -= 24;
+
+    // Constrói sufixo "+HH:00" ou "-HH:00" dinamicamente
+    char tzSuffix[7];
+    snprintf(tzSuffix, sizeof(tzSuffix), "%+03d:00", (int)Config::GPS_TIMEZONE_OFFSET_HOURS);
+
+    snprintf(dateTimeBuffer, sizeof(dateTimeBuffer), "%04d-%02d-%02dT%02d:%02d:%02d%s",
+             gps.date.year(), gps.date.month(), gps.date.day(),
+             hour, gps.time.minute(), gps.time.second(), tzSuffix);
+
     return String(dateTimeBuffer);
 }
 

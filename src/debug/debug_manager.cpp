@@ -2,10 +2,13 @@
 #include "../config/config.h"
 #include <Arduino.h>
 
-DebugManager::DebugManager() : isEnabled(false), lastPrintTime(0), logHead(0), logTail(0), logCount(0) {}
+DebugManager::DebugManager() : isEnabled(false), lastPrintTime(0), logHead(0), logTail(0), logCount(0), serialMutex(NULL) {}
 
 void DebugManager::initialize() {
   lastPrintTime = millis();
+  if (serialMutex == NULL) {
+    serialMutex = xSemaphoreCreateMutex();
+  }
   logf(LOG_LEVEL_INFO, "DebugManager inicializado");
 }
 
@@ -35,9 +38,13 @@ void DebugManager::logf(LogLevel level, const char* format, ...) {
   
   String finalMsg = String(tsBuf) + " [" + levelStr + "] " + message;
 
-  // Usa isEnabled como controle principal da serial.
-  if (isEnabled) {
-    Serial.println(finalMsg);
+  // Serial protegida por mutex — evita intercalação de saídas entre Core 0 e Core 1.
+  if (isEnabled && serialMutex != NULL) {
+    if (xSemaphoreTake(serialMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+      Serial.println(finalMsg);
+      xSemaphoreGive(serialMutex);
+    }
+    // Se o mutex não puder ser adquirido em 10 ms, a mensagem segue apenas no buffer circular.
   }
 
   // Insere no buffer circular

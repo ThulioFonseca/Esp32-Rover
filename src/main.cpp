@@ -46,13 +46,6 @@ void tankControlTask(void* pvParameters) {
     }
 }
 
-// Task mantida no Core 0 para preservar o contexto do scheduler do lado da rede.
-void webServerTask(void* pvParameters) {
-    while (true) {
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
-}
-
 // Broadcast de dados via WebSocket a 20 Hz (50 ms) no Core 0.
 // Usa vTaskDelayUntil para periodicidade determinística, sem drift.
 // broadcastSensorData() faz try-lock no mutex (0 ticks) — nunca bloqueia o Core 1.
@@ -126,8 +119,9 @@ void setup() {
     }
 
     // 5. Tasks do sistema.
-    xTaskCreatePinnedToCore(webServerTask,    "WebServerTask",   8192, NULL, 1, NULL, 0);
-    xTaskCreatePinnedToCore(wsBroadcastTask,  "WsBroadcastTask", 8192, NULL, 1, NULL, 0);  // Aumentado para 8KB (StaticJsonDocument na stack)
+    // Core 0: wsBroadcastTask (20 Hz) + tasks internas do AsyncWebServer/AsyncTCP
+    // Core 1: tankControlTask (50 Hz, prioridade alta)
+    xTaskCreatePinnedToCore(wsBroadcastTask,  "WsBroadcastTask", 4096, NULL, 1, NULL, 0);  // Broadcast binário compacto (122 bytes) — stack 4 KB é suficiente
     xTaskCreatePinnedToCore(tankControlTask,  "TankControlTask", 8192, NULL, 2, NULL, 1);
 
     tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Tasks iniciadas — sistema operacional (WS broadcast 20 Hz)");

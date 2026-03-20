@@ -141,7 +141,15 @@ def build():
 
     header_lines.append('#endif // WEB_PAGES_H\n')
 
-    OUT_FILE.write_text(''.join(header_lines), encoding='utf-8')
+    new_content = ''.join(header_lines)
+
+    # Só reescreve se o conteúdo realmente mudou — evita recompilação desnecessária
+    # do web_server_manager.cpp quando nenhum asset foi alterado.
+    if OUT_FILE.exists() and OUT_FILE.read_text(encoding='utf-8') == new_content:
+        print('[build_web] web_pages.h sem alteracoes — recompilacao desnecessaria evitada')
+        return
+
+    OUT_FILE.write_text(new_content, encoding='utf-8')
 
     print('[build_web] Total: {} bytes -> {} bytes ({:.0f}% reducao)'.format(
         total_original, total_compressed,

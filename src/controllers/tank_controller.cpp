@@ -9,8 +9,6 @@ TankController::TankController()
     : currentState(Types::INITIALIZING), systemArmed(false) {}
 
 bool TankController::initialize() {
-    debugManager.initialize();
-    debugManager.setEnabled(Config::DEBUG_ENABLED);
     debugManager.logf(DebugManager::LOG_LEVEL_INFO, "=== Inicializando TankController ===");
 
     currentState = Types::INITIALIZING;
