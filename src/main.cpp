@@ -46,6 +46,19 @@ void tankControlTask(void* pvParameters) {
     }
 }
 
+// Atualiza sensores I2C/UART a 50 Hz no Core 1, sem segurar o tankMutex.
+// Prioridade 1 (< tankControlTask) — preemptada pelo loop de controle quando necessário.
+// O driver I2C do ESP-IDF é baseado em DMA/interrupção: continua operando durante preempções.
+void sensorUpdateTask(void* pvParameters) {
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xFrequency = pdMS_TO_TICKS(Config::CONTROL_INTERVAL_MS);
+
+    while (true) {
+        vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        tankController.updateSensors();
+    }
+}
+
 // Broadcast de dados via WebSocket a 20 Hz (50 ms) no Core 0.
 // Usa vTaskDelayUntil para periodicidade determinística, sem drift.
 // broadcastSensorData() faz try-lock no mutex (0 ticks) — nunca bloqueia o Core 1.
@@ -121,10 +134,11 @@ void setup() {
     // 5. Tasks do sistema.
     // Core 0: wsBroadcastTask (20 Hz) + tasks internas do AsyncWebServer/AsyncTCP
     // Core 1: tankControlTask (50 Hz, prioridade alta)
-    xTaskCreatePinnedToCore(wsBroadcastTask,  "WsBroadcastTask", 4096, NULL, 1, NULL, 0);  // Broadcast binário compacto (122 bytes) — stack 4 KB é suficiente
-    xTaskCreatePinnedToCore(tankControlTask,  "TankControlTask", 8192, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(wsBroadcastTask,  "WsBroadcastTask",  4096, NULL, 1, NULL, 0);
+    xTaskCreatePinnedToCore(tankControlTask,  "TankControlTask",  8192, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(sensorUpdateTask, "SensorUpdateTask", 4096, NULL, 1, NULL, 1);
 
-    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Tasks iniciadas — sistema operacional (WS broadcast 20 Hz)");
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Tasks iniciadas — controle 50 Hz | sensores 50 Hz | WS broadcast 20 Hz");
 }
 
 void loop() {

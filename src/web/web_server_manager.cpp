@@ -30,6 +30,7 @@ bool WebServerManager::begin() {
         tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Tentando conectar à rede Wi-Fi (Modo Station)... SSID: %s", Config::STA_SSID.c_str());
         
         WiFi.mode(WIFI_STA);
+        WiFi.setSleep(false); // desativa modem sleep — elimina latência de TX por janela DTIM
         WiFi.begin(Config::STA_SSID.c_str(), Config::STA_PASS.c_str());
         
         // Aguarda conexão por até 10 segundos
@@ -53,6 +54,7 @@ bool WebServerManager::begin() {
     if (Config::WIFI_MODE == 0) {
         tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Iniciando modo Access Point...");
         WiFi.mode(WIFI_AP);
+        WiFi.setSleep(false); // mantém rádio ativo também no modo AP
         if (!WiFi.softAP(ap_ssid, ap_password)) {
             tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha ao iniciar Access Point!");
             return false;
@@ -407,7 +409,11 @@ size_t WebServerManager::wsClientCount() const {
 static uint8_t wsBinaryBuffer[Config::WS_BINARY_FRAME_SIZE];
 
 void WebServerManager::broadcastSensorData() {
-    ws.cleanupClients(2);
+    static uint8_t _cleanupTick = 0;
+    if (++_cleanupTick >= 20) { // 20 × 50ms = 1 segundo
+        ws.cleanupClients(2);
+        _cleanupTick = 0;
+    }
     if (ws.count() == 0) return;
     if (tankMutex == nullptr) return;
 

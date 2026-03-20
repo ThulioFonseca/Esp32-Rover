@@ -30,6 +30,7 @@ bool TankController::initialize() {
     // Barramento I2C único compartilhado — IMU, Compass e sensores futuros
     debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando I2C SDA=%d SCL=%d @ %lu Hz", Pins::SDA, Pins::SCL, Config::I2C_FREQ_HZ);
     Wire.begin(Pins::SDA, Pins::SCL, Config::I2C_FREQ_HZ);
+    Wire.setTimeOut(20); // 20ms limite por transação I2C (padrão: 50ms)
 
     // Sensores são opcionais — falha na inicialização não trava o boot.
     if (Config::IMU_ENABLED) {
@@ -69,12 +70,7 @@ void TankController::update() {
     channelManager.update();
     updateState();
 
-    // Sensores atualizam independentes do estado do sistema
-    if (Config::IMU_ENABLED) imuSensor.update();
-    if (Config::GPS_ENABLED) {
-        gpsSensor.update();
-        compassSensor.update();
-    }
+    // Sensores movidos para sensorUpdateTask — leituras I2C sem segurar o tankMutex.
 
     switch (currentState) {
         case Types::ARMED:   updateSystem();               break;
@@ -92,6 +88,14 @@ void TankController::setSystemArmed(bool armed) {
     systemArmed = armed;
     if (!systemArmed) {
         motorController.setNeutral();
+    }
+}
+
+void TankController::updateSensors() {
+    if (Config::IMU_ENABLED) imuSensor.update();
+    if (Config::GPS_ENABLED) {
+        gpsSensor.update();
+        compassSensor.update();
     }
 }
 

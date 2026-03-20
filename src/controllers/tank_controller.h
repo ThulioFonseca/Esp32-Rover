@@ -37,7 +37,8 @@ public:
   TankController();
 
   bool initialize();
-  void update(); // Chamado pela TankControlTask a 50 Hz via FreeRTOS.
+  void update();        // Chamado pela tankControlTask a 50 Hz — motor control apenas.
+  void updateSensors(); // Chamado pela sensorUpdateTask — leituras I2C fora do loop de controle.
   void setDebugMode(bool enabled);
   void setSystemArmed(bool armed);
 
