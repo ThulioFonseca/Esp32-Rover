@@ -3,6 +3,7 @@
 #include "controllers/tank_controller.h"
 #include "config/config.h"
 #include <ArduinoJson.h>
+#include <Update.h>
 #include "freertos/semphr.h"
 
 extern TankController tankController;
@@ -341,6 +342,43 @@ void WebServerManager::setupRoutes() {
             request->send(200, "application/json", "{\"status\":\"success\"}");
         }
     });
+
+    // ── OTA: upload de firmware via browser ──────────────────────────────────────
+    server.on("/update", HTTP_POST,
+        [](AsyncWebServerRequest *request) {
+            bool ok = !Update.hasError();
+            request->send(200, "application/json",
+                ok ? "{\"status\":\"ok\"}"
+                   : String("{\"status\":\"error\",\"message\":\"") + Update.errorString() + "\"}");
+            if (ok) pendingReboot = true;
+        },
+        [](AsyncWebServerRequest *request, const String& filename,
+           size_t index, uint8_t *data, size_t len, bool final) {
+            if (index == 0) {
+                if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+                    tankController.setSystemArmed(false);
+                    xSemaphoreGive(tankMutex);
+                }
+                if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+                    tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR,
+                        "OTA begin falhou: %s", Update.errorString());
+                } else {
+                    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO,
+                        "OTA iniciado: %s", filename.c_str());
+                }
+            }
+            if (Update.isRunning()) { Update.write(data, len); }
+            if (final) {
+                if (Update.end(true)) {
+                    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO,
+                        "OTA concluido: %u bytes. Reiniciando...", index + len);
+                } else {
+                    tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR,
+                        "OTA end falhou: %s", Update.errorString());
+                }
+            }
+        }
+    );
 
     // Not found
     server.onNotFound([](AsyncWebServerRequest *request){

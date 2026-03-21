@@ -128,6 +128,7 @@
                 <div class="hud-viewport">
                     <div class="lens-fx"></div>
                     <div class="screen-fx"></div>
+                    <div class="crt-tube-frame"></div>
 
                     <div id="boot-screen">
                         <div class="boot-line" id="b1">> POWER ON... OK</div>
@@ -297,6 +298,28 @@
                         </div>
 
                         <button onclick="saveNetworkSettings()" class="btn-primary" style="margin-top: 20px; width: 100%;">SAVE & REBOOT</button>
+                    </div>
+
+                    <!-- Firmware Update (OTA) -->
+                    <div class="card" style="grid-column: 1 / -1;">
+                        <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--header-border); padding-bottom: 12px; margin-bottom: 16px;">
+                            <h3 style="border: none; padding: 0; margin: 0;">Firmware Update (OTA)</h3>
+                            <span style="font-size: 0.75rem; color: var(--text-muted);">Sem cabo USB necessário</span>
+                        </div>
+                        <p style="font-size: 0.8em; color: var(--text-muted); margin-bottom: 16px;">
+                            Selecione o arquivo <code>.bin</code> gerado pelo PlatformIO (<code>.pio/build/esp32dev/firmware.bin</code>).
+                            O sistema será desarmado automaticamente e reiniciará após a atualização.
+                        </p>
+                        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                            <input type="file" id="ota-file" accept=".bin" class="custom-input" style="flex: 1; min-width: 200px; cursor: pointer;">
+                            <button id="ota-btn" onclick="uploadFirmware()" class="btn-primary" style="white-space: nowrap;">UPLOAD FIRMWARE</button>
+                        </div>
+                        <div style="margin-top: 14px;">
+                            <div class="bar-bg" id="ota-bar-bg" style="display: none; margin-bottom: 8px;">
+                                <div class="bar-fill" id="ota-bar" style="width: 0%; transition: width 0.2s;"></div>
+                            </div>
+                            <p id="ota-status" style="font-size: 0.8em; color: var(--text-muted); margin: 0;"></p>
+                        </div>
                     </div>
 
                     <!-- System Logs Console -->

@@ -647,23 +647,32 @@ function initHUD() {
     const pitchGroup = document.getElementById('pitch-ladder');
     if (pitchGroup) {
         pitchGroup.innerHTML = '';
-        for (let i = -60; i <= 60; i += 10) {
+        for (let i = -120; i <= 120; i += 10) {
             const y = i * 3;
-            const w = (i === 0) ? 120 : ((i % 20 === 0) ? 70 : 40);
+            const absI = Math.abs(i);
+            const isInverted = absI > 90;  // beyond zenith/nadir — inverted territory
+
+            let w;
+            if (i === 0)            w = 120;  // horizon line
+            else if (absI === 90)   w = 90;   // zenith/nadir — wider special mark
+            else if (absI % 20 === 0) w = 70; // major marks
+            else                    w = 40;   // minor marks
+
+            const strokeClass = isInverted ? 'stroke-dim' : 'stroke-main';
             const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
             if (i === 0) {
                 g.innerHTML = '<path d="M-' + w + ',0 L-30,0 M30,0 L' + w + ',0" class="stroke-main" stroke-width="2" />';
             } else if (i > 0) {
                 g.innerHTML =
-                    '<path d="M-' + w + ',-' + y + ' L-20,-' + y + ' M20,-' + y + ' L' + w + ',-' + y + '" class="stroke-main" />' +
+                    '<path d="M-' + w + ',-' + y + ' L-20,-' + y + ' M20,-' + y + ' L' + w + ',-' + y + '" class="' + strokeClass + '" />' +
                     '<text x="-' + (w + 15) + '" y="-' + (y - 4) + '" class="center-text-readout" font-size="10" text-anchor="end">' + i + '</text>' +
                     '<text x="' + (w + 15) + '" y="-' + (y - 4) + '" class="center-text-readout" font-size="10" text-anchor="start">' + i + '</text>';
             } else {
                 const absY = Math.abs(y);
                 g.innerHTML =
-                    '<path d="M-' + w + ',' + absY + ' L-20,' + absY + ' L-20,' + (absY + 5) + ' M20,' + (absY + 5) + ' L20,' + absY + ' L' + w + ',' + absY + '" class="stroke-main" stroke-dasharray="6" />' +
-                    '<text x="-' + (w + 15) + '" y="' + (absY + 4) + '" class="center-text-readout" font-size="10" text-anchor="end">' + Math.abs(i) + '</text>' +
-                    '<text x="' + (w + 15) + '" y="' + (absY + 4) + '" class="center-text-readout" font-size="10" text-anchor="start">' + Math.abs(i) + '</text>';
+                    '<path d="M-' + w + ',' + absY + ' L-20,' + absY + ' L-20,' + (absY + 5) + ' M20,' + (absY + 5) + ' L20,' + absY + ' L' + w + ',' + absY + '" class="' + strokeClass + '" stroke-dasharray="6" />' +
+                    '<text x="-' + (w + 15) + '" y="' + (absY + 4) + '" class="center-text-readout" font-size="10" text-anchor="end">' + absI + '</text>' +
+                    '<text x="' + (w + 15) + '" y="' + (absY + 4) + '" class="center-text-readout" font-size="10" text-anchor="start">' + absI + '</text>';
             }
             pitchGroup.appendChild(g);
         }
@@ -887,3 +896,93 @@ document.addEventListener('DOMContentLoaded', function() {
     startRenderLoop();      // Fase 2: inicia loop RAF desacoplado
     connectWebSocket();     // Inicia conexão push realtime via WebSocket
 });
+
+// ─── OTA Firmware Update ─────────────────────────────────────────────────────
+
+function uploadFirmware() {
+    const fileInput = document.getElementById('ota-file');
+    const statusEl  = document.getElementById('ota-status');
+    const barEl     = document.getElementById('ota-bar');
+    const barBgEl   = document.getElementById('ota-bar-bg');
+    const btnEl     = document.getElementById('ota-btn');
+
+    if (!fileInput.files.length) {
+        statusEl.textContent = 'Selecione um arquivo .bin primeiro.';
+        statusEl.style.color = 'var(--watermelon)';
+        return;
+    }
+
+    const file = fileInput.files[0];
+    if (!file.name.endsWith('.bin')) {
+        statusEl.textContent = 'Arquivo inválido. Selecione um .bin gerado pelo PlatformIO.';
+        statusEl.style.color = 'var(--watermelon)';
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('firmware', file);
+
+    btnEl.disabled         = true;
+    barEl.style.width      = '0%';
+    barEl.style.background = '';
+    barBgEl.style.display  = 'block';
+    statusEl.style.color   = 'var(--text-muted)';
+    statusEl.textContent   = 'Preparando envio...';
+
+    let uploadComplete = false;
+    const xhr = new XMLHttpRequest();
+
+    xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+            const pct = Math.round((e.loaded / e.total) * 100);
+            barEl.style.width    = pct + '%';
+            statusEl.textContent = `Enviando... ${pct}%  (${(e.loaded / 1024).toFixed(0)} / ${(e.total / 1024).toFixed(0)} KB)`;
+            if (pct === 100) uploadComplete = true;
+        }
+    };
+
+    xhr.onload = () => {
+        try {
+            const res = JSON.parse(xhr.responseText);
+            if (res.status === 'ok') {
+                barEl.style.width      = '100%';
+                barEl.style.background = '#4caf50';
+                statusEl.style.color   = '#4caf50';
+                statusEl.textContent   = 'Firmware atualizado! O rover vai reiniciar automaticamente.';
+            } else {
+                barEl.style.background = 'var(--watermelon)';
+                statusEl.style.color   = 'var(--watermelon)';
+                statusEl.textContent   = 'Erro: ' + (res.message || 'falha desconhecida');
+                btnEl.disabled = false;
+            }
+        } catch (_) {
+            // Conexão fechada antes da resposta — normal se o ESP já reiniciou
+            if (uploadComplete) {
+                barEl.style.background = '#4caf50';
+                statusEl.style.color   = '#4caf50';
+                statusEl.textContent   = 'Firmware enviado! Aguardando reinicialização...';
+            } else {
+                statusEl.style.color = 'var(--watermelon)';
+                statusEl.textContent = 'Erro na comunicação com o rover.';
+                btnEl.disabled = false;
+            }
+        }
+    };
+
+    xhr.onerror = () => {
+        if (uploadComplete) {
+            barEl.style.width      = '100%';
+            barEl.style.background = '#4caf50';
+            statusEl.style.color   = '#4caf50';
+            statusEl.textContent   = 'Firmware enviado! Rover está reiniciando...';
+        } else {
+            barEl.style.background = 'var(--watermelon)';
+            statusEl.style.color   = 'var(--watermelon)';
+            statusEl.textContent   = 'Falha na conexão. Verifique se o rover está acessível.';
+            btnEl.disabled = false;
+        }
+    };
+
+    xhr.open('POST', '/update');
+    xhr.send(formData);
+}

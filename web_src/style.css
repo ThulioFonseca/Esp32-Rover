@@ -300,7 +300,11 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
 #hud-tab {
     padding: 0;
     margin: 0;
-    background-color: #050807;
+    background: radial-gradient(ellipse 75% 65% at 50% 50%,
+        #060f08 0%,
+        #040b06 35%,
+        #020604 60%,
+        #000000 100%);
     position: relative;
     overflow: hidden;
     height: 85vh;
@@ -310,14 +314,15 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
 }
 
 .hud-viewport {
-    --primary: var(--accent-color);
-    --primary-dim: rgba(var(--accent-rgb), 0.25);
+    /* Phosphor green — fixed regardless of app theme */
+    --primary: #00e87a;
+    --primary-dim: rgba(0, 232, 122, 0.2);
     --danger: var(--watermelon);
     --warning: #ffb300;
     --text-main: var(--text-main);
     --text-dim: rgba(224, 248, 245, 0.65);
     --font-mono: 'Share Tech Mono', 'Courier New', monospace;
-    --glow: 0 0 6px var(--primary);
+    --glow: 0 0 5px #00e87a, 0 0 12px rgba(0, 232, 122, 0.35);
     --fpv-aberration: 0.6px 0px 0px rgba(255,0,0,0.3), -0.6px 0px 0px rgba(0,255,255,0.3), 0 0 2px rgba(0,0,0,0.8);
 
     font-variant-numeric: tabular-nums;
@@ -329,6 +334,13 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
     overflow: hidden;
     color: var(--text-main);
     font-family: var(--font-mono);
+    animation: crt-flicker 11s infinite;
+}
+
+@keyframes crt-flicker {
+    0%, 18%, 20%, 22%, 24%, 53%, 55%, 100% { opacity: 1; }
+    19%, 23%, 54% { opacity: 0.97; }
+    21% { opacity: 0.93; }
 }
 
 .hud-viewport.critical-mode {
@@ -344,12 +356,33 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
 }
 .screen-fx {
     position: absolute; inset: 0; pointer-events: none; z-index: 999;
-    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%); background-size: 100% 4px;
+    background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 2px,
+        rgba(0, 0, 0, 0.28) 2px,
+        rgba(0, 0, 0, 0.28) 3px
+    );
+}
+.crt-tube-frame {
+    position: absolute; inset: 0; pointer-events: none; z-index: 1000;
+    border-radius: 16px;
+    background:
+        /* Glass glare — canonical CRT top-left reflection */
+        radial-gradient(ellipse 45% 22% at 18% 10%,
+            rgba(255,255,255,0.045) 0%, transparent 100%),
+        /* Tube screen curvature — edge darkening */
+        radial-gradient(ellipse 82% 72% at 50% 50%,
+            transparent 55%, rgba(0,0,0,0.55) 100%);
+    /* Metallic inner bezel ring */
+    box-shadow:
+        inset 0 0 0 1px rgba(255,255,255,0.06),
+        inset 0 1px 0 0 rgba(255,255,255,0.04);
 }
 .optics-bg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; opacity: 0.12; transition: opacity 1s; }
 
 #boot-screen {
-    position: absolute; inset: 0; z-index: 9999; background: #050807;
+    position: absolute; inset: 0; z-index: 9999; background: #020604;
     display: flex; flex-direction: column; justify-content: flex-end; padding: 40px;
     font-size: 18px; color: var(--primary); text-shadow: var(--glow);
     transition: opacity 0.3s ease-out;
@@ -368,8 +401,16 @@ input:checked + .slider:before { transform: translateX(22px); background-color: 
         height: clamp(300px, 85vmin, 850px);
         aspect-ratio: 1;
         overflow: visible;
-        filter: drop-shadow(var(--glow));
+        filter:
+            drop-shadow(0 0 2px #00e87a)
+            drop-shadow(0 0 8px rgba(0, 232, 122, 0.45))
+            drop-shadow(0 0 1px rgba(255,255,255,0.2));
         transition: filter 0.2s;
+    }
+    .hud-viewport.critical-mode .svg-center {
+        filter:
+            drop-shadow(0 0 2px var(--danger))
+            drop-shadow(0 0 8px rgba(228, 37, 72, 0.45));
     }
 
 .stroke-main { stroke: var(--primary); fill: none; stroke-width: 1.5; transition: stroke 0.2s; }
