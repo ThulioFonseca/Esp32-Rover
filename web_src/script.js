@@ -780,7 +780,7 @@ function updateHUD(data) {
     const pitchY = pitch * 3;
     if (DOM.horizonGroup) {
         DOM.horizonGroup.style.transform =
-            'translate(300px, 330px) rotate(' + (-roll) + 'deg) translate(0px, ' + pitchY + 'px)';
+            'translate(300px, 330px) rotate(' + roll + 'deg) translate(0px, ' + pitchY + 'px)';
     }
     // Roll pointer: polygon tip at SVG (300,125); CSS transform-box:view-box + origin:300px 300px
     if (DOM.rollPointer) {
