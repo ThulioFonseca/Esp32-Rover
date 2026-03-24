@@ -255,13 +255,13 @@ function updateConnectionStatus(connected) {
     const el = document.getElementById('connectionStatus');
     const linkEl = document.getElementById('hud-sys-link');
     if (connected) {
-        el.innerText = 'Connected';
+        el.innerText = 'CONNECTED';
         el.style.borderColor = 'var(--accent-color)';
         el.style.color = 'var(--accent-color)';
         el.style.backgroundColor = 'var(--accent-bg-glow)';
         if (linkEl) linkEl.innerText = 'OK';
     } else {
-        el.innerText = 'Disconnected';
+        el.innerText = 'DISCONNECTED';
         el.style.borderColor = 'var(--watermelon)';
         el.style.color = 'var(--watermelon)';
         el.style.backgroundColor = 'rgba(228, 37, 72, 0.1)';
@@ -350,10 +350,10 @@ function updateRadioFromData(d) {
     if (!container) return;
 
     if (container.innerHTML === 'Loading...' || container.innerHTML === '') {
-        container.innerHTML = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">' +
+        container.innerHTML = '<div class="ch-grid">' +
             d.raw_channels.map(function(val, i) {
-                return '<div class="channel-group" style="margin-bottom: 0;"><label>CH ' + (i+1) + '</label>' +
-                    '<div class="channel-row"><div class="progress-bar"><div id="ch-' + i + '" class="fill" style="width: 50%"></div></div>' +
+                return '<div class="channel-group"><label>CH ' + (i+1) + '</label>' +
+                    '<div class="channel-row"><div class="progress-bar"><div id="ch-' + i + '" class="fill" style="width:50%"></div></div>' +
                     '<span class="val" id="val-' + i + '">' + val + '</span></div></div>';
             }).join('') + '</div>';
 
