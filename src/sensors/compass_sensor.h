@@ -15,8 +15,7 @@ private:
     unsigned long lastReadTime;
     const unsigned long READ_INTERVAL_MS = 100; // 10Hz polling rate
 
-    uint8_t errorCount;
-    static constexpr uint8_t SENSOR_ERROR_THRESHOLD = 5;
+    uint16_t errorCount;
 
     // Kalman 1D para suavização do heading (Q=0.001, R=0.5)
     KalmanFilter1D _headingKalman;
@@ -35,8 +34,9 @@ public:
 
     bool initialize(TwoWire* wireInstance = &Wire);
     void update();
-    
+
     const Types::CompassData& getData() const;
+    bool needsReinit() const;
 };
 
 #endif

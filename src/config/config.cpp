@@ -24,31 +24,15 @@ namespace Config {
     preferences.end();
   }
 
-  void saveNetworkPreferences(uint8_t mode, const String& ssid, const String& pass) {
-    preferences.begin("rover", false); // false = leitura/escrita
-    preferences.putUChar("wifi_mode", mode);
-    preferences.putString("sta_ssid", ssid);
-    preferences.putString("sta_pass", pass);
-    preferences.end();
-    
-    WIFI_MODE = mode;
-    STA_SSID = ssid;
-    STA_PASS = pass;
-  }
-
-  void saveDebugPreference(bool enabled) {
+  void savePreferences() {
+    // Grava todos os valores atuais em uma única transação NVS.
+    // Deve ser chamada apenas em contexto seguro (tasks Core 1 estacionadas).
     preferences.begin("rover", false);
-    preferences.putBool("debug", enabled);
+    preferences.putBool("debug",      DEBUG_ENABLED);
+    preferences.putBool("dark_theme", DARK_THEME);
+    preferences.putUChar("wifi_mode", WIFI_MODE);
+    preferences.putString("sta_ssid", STA_SSID);
+    preferences.putString("sta_pass", STA_PASS);
     preferences.end();
-    
-    DEBUG_ENABLED = enabled;
-  }
-
-  void saveThemePreference(bool dark_theme) {
-    preferences.begin("rover", false);
-    preferences.putBool("dark_theme", dark_theme);
-    preferences.end();
-    
-    DARK_THEME = dark_theme;
   }
 }

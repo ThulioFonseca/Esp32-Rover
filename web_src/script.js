@@ -480,6 +480,11 @@ function saveNetworkSettings() {
     .catch(function() {});
 }
 
+function showNvsPendingMsg() {
+    const msg = document.getElementById('nvs-pending-msg');
+    if (msg) msg.style.display = 'block';
+}
+
 function toggleTheme() {
     const enabled = document.getElementById('theme-toggle').checked;
     if(enabled) {
@@ -491,7 +496,7 @@ function toggleTheme() {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({dark_theme: enabled})
-    }).catch(console.error);
+    }).then(function() { showNvsPendingMsg(); }).catch(console.error);
 }
 
 function toggleDebug() {
@@ -500,7 +505,21 @@ function toggleDebug() {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({debug: enabled})
-    }).catch(console.error);
+    }).then(function() { showNvsPendingMsg(); }).catch(console.error);
+}
+
+function rebootSystem() {
+    if (!confirm('Reboot the rover to save settings?')) return;
+    fetch('/api/reboot', { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            if (d.status === 'rebooting') {
+                const msg = document.getElementById('nvs-pending-msg');
+                if (msg) { msg.style.color = 'var(--primary)'; msg.textContent = 'Rebooting... reconnecting in 5s.'; }
+                setTimeout(function() { location.reload(); }, 5000);
+            }
+        })
+        .catch(console.error);
 }
 
 function updateLogs() {
@@ -897,92 +916,3 @@ document.addEventListener('DOMContentLoaded', function() {
     connectWebSocket();     // Inicia conexão push realtime via WebSocket
 });
 
-// ─── OTA Firmware Update ─────────────────────────────────────────────────────
-
-function uploadFirmware() {
-    const fileInput = document.getElementById('ota-file');
-    const statusEl  = document.getElementById('ota-status');
-    const barEl     = document.getElementById('ota-bar');
-    const barBgEl   = document.getElementById('ota-bar-bg');
-    const btnEl     = document.getElementById('ota-btn');
-
-    if (!fileInput.files.length) {
-        statusEl.textContent = 'Selecione um arquivo .bin primeiro.';
-        statusEl.style.color = 'var(--watermelon)';
-        return;
-    }
-
-    const file = fileInput.files[0];
-    if (!file.name.endsWith('.bin')) {
-        statusEl.textContent = 'Arquivo inválido. Selecione um .bin gerado pelo PlatformIO.';
-        statusEl.style.color = 'var(--watermelon)';
-        return;
-    }
-
-    const formData = new FormData();
-    formData.append('firmware', file);
-
-    btnEl.disabled         = true;
-    barEl.style.width      = '0%';
-    barEl.style.background = '';
-    barBgEl.style.display  = 'block';
-    statusEl.style.color   = 'var(--text-muted)';
-    statusEl.textContent   = 'Preparando envio...';
-
-    let uploadComplete = false;
-    const xhr = new XMLHttpRequest();
-
-    xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-            const pct = Math.round((e.loaded / e.total) * 100);
-            barEl.style.width    = pct + '%';
-            statusEl.textContent = `Enviando... ${pct}%  (${(e.loaded / 1024).toFixed(0)} / ${(e.total / 1024).toFixed(0)} KB)`;
-            if (pct === 100) uploadComplete = true;
-        }
-    };
-
-    xhr.onload = () => {
-        try {
-            const res = JSON.parse(xhr.responseText);
-            if (res.status === 'ok') {
-                barEl.style.width      = '100%';
-                barEl.style.background = '#4caf50';
-                statusEl.style.color   = '#4caf50';
-                statusEl.textContent   = 'Firmware atualizado! O rover vai reiniciar automaticamente.';
-            } else {
-                barEl.style.background = 'var(--watermelon)';
-                statusEl.style.color   = 'var(--watermelon)';
-                statusEl.textContent   = 'Erro: ' + (res.message || 'falha desconhecida');
-                btnEl.disabled = false;
-            }
-        } catch (_) {
-            // Conexão fechada antes da resposta — normal se o ESP já reiniciou
-            if (uploadComplete) {
-                barEl.style.background = '#4caf50';
-                statusEl.style.color   = '#4caf50';
-                statusEl.textContent   = 'Firmware enviado! Aguardando reinicialização...';
-            } else {
-                statusEl.style.color = 'var(--watermelon)';
-                statusEl.textContent = 'Erro na comunicação com o rover.';
-                btnEl.disabled = false;
-            }
-        }
-    };
-
-    xhr.onerror = () => {
-        if (uploadComplete) {
-            barEl.style.width      = '100%';
-            barEl.style.background = '#4caf50';
-            statusEl.style.color   = '#4caf50';
-            statusEl.textContent   = 'Firmware enviado! Rover está reiniciando...';
-        } else {
-            barEl.style.background = 'var(--watermelon)';
-            statusEl.style.color   = 'var(--watermelon)';
-            statusEl.textContent   = 'Falha na conexão. Verifique se o rover está acessível.';
-            btnEl.disabled = false;
-        }
-    };
-
-    xhr.open('POST', '/update');
-    xhr.send(formData);
-}

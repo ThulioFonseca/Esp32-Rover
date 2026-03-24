@@ -83,7 +83,7 @@ namespace Types {
     float course;   // graus
     uint32_t satellites;
     float hdop;
-    String dateTime;          // formato ISO 8601 (usado pelo JSON API)
+    char dateTime[30];        // formato ISO 8601 (buffer fixo, sem alocação heap)
     uint8_t timeHour;         // hora UTC (0-23) — incluído no frame binário
     uint8_t timeMinute;       // minuto (0-59)
     uint8_t timeSecond;       // segundo (0-59)

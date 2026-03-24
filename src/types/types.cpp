@@ -37,6 +37,6 @@ namespace Types {
   GpsData::GpsData()
     : latitude(0.0f), longitude(0.0f), altitude(0.0f),
       speed(0.0f), course(0.0f), satellites(0), hdop(0.0f),
-      dateTime(""), timeHour(0), timeMinute(0), timeSecond(0),
+      dateTime{0}, timeHour(0), timeMinute(0), timeSecond(0),
       isValid(false), lastUpdate(0) {}
 }

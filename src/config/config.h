@@ -21,7 +21,7 @@ namespace Config {
   // Timeouts e intervalos
   extern unsigned long IBUS_TIMEOUT_MS;
   constexpr unsigned long CONTROL_INTERVAL_MS   = 20;   // 50 Hz — frequência do loop de controle
-  constexpr unsigned long WS_BROADCAST_INTERVAL_MS = 50; // 20 Hz — frequência do broadcast WebSocket
+  constexpr unsigned long WS_BROADCAST_INTERVAL_MS = 100; // 10 Hz — frequência do broadcast WebSocket
   constexpr unsigned long DEBUG_INTERVAL_MS     = 100;
   constexpr unsigned long ARMING_TIME_MS        = 1500;
   constexpr int           TANK_MUTEX_TIMEOUT_MS = 5;    // Timeout do try-lock no tankControlTask
@@ -36,9 +36,10 @@ namespace Config {
 
   // Função para carregar preferências do NVS
   void loadPreferences();
-  void saveNetworkPreferences(uint8_t mode, const String& ssid, const String& pass);
-  void saveDebugPreference(bool enabled);
-  void saveThemePreference(bool dark_theme);
+
+  // Salva todos os valores atuais de Config:: no NVS em uma única transação.
+  // Deve ser chamada apenas em contexto seguro (ex: sequência de reboot com tasks pausadas).
+  void savePreferences();
 
   // Theme
   extern bool DARK_THEME;
@@ -53,6 +54,7 @@ namespace Config {
   // I2C — barramento único compartilhado (pinos 21/22)
   // Para Fast Mode (400 kHz) com pull-ups de 2.2 kΩ, trocar para 400000.
   constexpr uint32_t I2C_FREQ_HZ = 100000; // Standard Mode (100 kHz)
+  constexpr uint16_t I2C_SENSOR_ERROR_THRESHOLD = 5; // Erros consecutivos antes de recovery
 
   // IMU (MPU-9250 / 6500 / 9255 via I2C)
   // AD0 = LOW  → 0x68 | AD0 = HIGH → 0x69

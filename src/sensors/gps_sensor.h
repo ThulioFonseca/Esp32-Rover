@@ -14,7 +14,7 @@ private:
     
     unsigned long lastValidTime;
 
-    String getFormattedDateTime();
+    void formatDateTime(char* buf, size_t bufLen);
 
 public:
     GpsSensor();

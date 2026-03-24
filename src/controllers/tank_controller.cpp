@@ -4,14 +4,23 @@
 #include "../utils/utils.h"
 #include <Arduino.h>
 #include <Wire.h>
+#include "driver/gpio.h"
 
 TankController::TankController()
-    : currentState(Types::INITIALIZING), systemArmed(false) {}
+    : currentState(Types::INITIALIZING), systemArmed(false),
+      sensorMutex(NULL), i2cConsecutiveErrors(0), recoveryAttempts(0) {}
 
 bool TankController::initialize() {
     debugManager.logf(DebugManager::LOG_LEVEL_INFO, "=== Inicializando TankController ===");
 
     currentState = Types::INITIALIZING;
+
+    // Mutex para snapshots de sensores — protege apenas cópias rápidas, nunca I2C.
+    sensorMutex = xSemaphoreCreateMutex();
+    if (sensorMutex == NULL) {
+        debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha ao criar sensorMutex");
+        return false;
+    }
 
     debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando ChannelManager...");
     if (!channelManager.initialize()) {
@@ -92,10 +101,33 @@ void TankController::setSystemArmed(bool armed) {
 }
 
 void TankController::updateSensors() {
+    // 1. Leituras I2C/UART lentas — SEM mutex (podem demorar até 20ms com timeout)
     if (Config::IMU_ENABLED) imuSensor.update();
     if (Config::GPS_ENABLED) {
         gpsSensor.update();
         compassSensor.update();
+    }
+
+    // 2. Cópia atômica para snapshots — mutex breve (microsegundos)
+    if (sensorMutex != NULL && xSemaphoreTake(sensorMutex, 0) == pdTRUE) {
+        imuSnapshot     = imuSensor.getData();
+        gpsSnapshot     = gpsSensor.getData();
+        compassSnapshot = compassSensor.getData();
+        xSemaphoreGive(sensorMutex);
+    }
+
+    // 3. Verifica saúde do barramento I2C — recovery se necessário
+    bool imuFailing     = Config::IMU_ENABLED && imuSensor.needsReinit();
+    bool compassFailing = Config::GPS_ENABLED && compassSensor.needsReinit();
+
+    if (imuFailing || compassFailing) {
+        i2cConsecutiveErrors++;
+        if (i2cConsecutiveErrors >= I2C_RECOVERY_THRESHOLD) {
+            recoverI2CBus();
+            i2cConsecutiveErrors = 0;
+        }
+    } else {
+        i2cConsecutiveErrors = 0;
     }
 }
 
@@ -107,17 +139,9 @@ const Types::MotorCommands& TankController::getMotorCommands() const {
     return motorController.getCommands();
 }
 
-const Types::ImuData& TankController::getImuData() const {
-    return imuSensor.getData();
-}
-
-const Types::GpsData& TankController::getGpsData() const {
-    return gpsSensor.getData();
-}
-
-const Types::CompassData& TankController::getCompassData() const {
-    return compassSensor.getData();
-}
+Types::ImuData     TankController::getImuData()     const { return snapshotUnderMutex(imuSnapshot); }
+Types::GpsData     TankController::getGpsData()     const { return snapshotUnderMutex(gpsSnapshot); }
+Types::CompassData TankController::getCompassData() const { return snapshotUnderMutex(compassSnapshot); }
 
 Types::SystemState TankController::getSystemState() const {
     return currentState;
@@ -133,6 +157,83 @@ String TankController::getSystemLogs() {
 
 void TankController::clearSystemLogs() {
     debugManager.clearLogs();
+}
+
+void TankController::recoverI2CBus() {
+    debugManager.logf(DebugManager::LOG_LEVEL_WARN,
+        "I2C recovery tentativa %d — liberando GPIO matrix, bit-bang SCL, reinit sensores",
+        recoveryAttempts + 1);
+
+    // 1. Para o driver Wire
+    Wire.end();
+    delay(5);
+
+    // 2. Remove SDA e SCL da GPIO matrix do ESP32.
+    //    Wire.end() para o driver mas NÃO libera os pinos do controle do periférico
+    //    I2C na GPIO matrix. Sem isso, os pulsos do bit-bang brigam com o periférico
+    //    que ainda controla os pinos — tornando o processo ineficaz.
+    gpio_reset_pin((gpio_num_t)Pins::SDA);
+    gpio_reset_pin((gpio_num_t)Pins::SCL);
+    delayMicroseconds(100); // estabilização como inputs flutuantes
+
+    // 3. Só bit-bang se SDA estiver realmente preso baixo
+    pinMode(Pins::SDA, INPUT_PULLUP);
+    pinMode(Pins::SCL, INPUT_PULLUP);
+    delayMicroseconds(50);
+
+    if (digitalRead(Pins::SDA) == LOW) {
+        debugManager.logf(DebugManager::LOG_LEVEL_WARN, "SDA preso LOW — 9 ciclos SCL para liberar");
+        pinMode(Pins::SCL, OUTPUT);
+        for (int i = 0; i < 9; i++) {
+            digitalWrite(Pins::SCL, HIGH);
+            delayMicroseconds(5);
+            digitalWrite(Pins::SCL, LOW);
+            delayMicroseconds(5);
+        }
+        // Condição STOP: SCL HIGH → SDA low→high
+        pinMode(Pins::SDA, OUTPUT);
+        digitalWrite(Pins::SCL, HIGH);
+        delayMicroseconds(5);
+        digitalWrite(Pins::SDA, LOW);
+        delayMicroseconds(5);
+        digitalWrite(Pins::SDA, HIGH);
+        delayMicroseconds(5);
+    } else {
+        debugManager.logf(DebugManager::LOG_LEVEL_INFO,
+            "SDA HIGH após gpio_reset — barramento pode estar livre, reinit Wire");
+    }
+
+    delay(5); // settling após STOP antes de reinicializar Wire
+
+    // 4. Reinicializa o periférico I2C
+    Wire.begin(Pins::SDA, Pins::SCL, Config::I2C_FREQ_HZ);
+    Wire.setTimeOut(20);
+
+    // 5. Reinicializa sensores e verifica resultado
+    bool imuOk     = !Config::IMU_ENABLED || imuSensor.initialize(&Wire);
+    bool compassOk = !Config::GPS_ENABLED || compassSensor.initialize(&Wire);
+
+    if (imuOk && compassOk) {
+        debugManager.logf(DebugManager::LOG_LEVEL_INFO,
+            "Recovery I2C bem-sucedido na tentativa %d — sensores online", recoveryAttempts + 1);
+        recoveryAttempts = 0;
+        return;
+    }
+
+    if (!imuOk)     debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "IMU ainda não responde (tentativa %d)", recoveryAttempts + 1);
+    if (!compassOk) debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Compass ainda não responde (tentativa %d)", recoveryAttempts + 1);
+
+    recoveryAttempts++;
+
+    // 6. Último recurso: ESP.restart() após 3 tentativas consecutivas sem sucesso.
+    //    Power cycle sempre funciona; ESP.restart() faz reset completo de hardware equivalente.
+    //    pendingNvsRtc.magic NÃO é setado — restart é puramente para recovery de hardware.
+    if (recoveryAttempts >= 3) {
+        debugManager.logf(DebugManager::LOG_LEVEL_ERROR,
+            "Barramento I2C irrecuperável após %d tentativas — ESP.restart()", recoveryAttempts);
+        delay(200);
+        ESP.restart();
+    }
 }
 
 void TankController::updateSystem() {

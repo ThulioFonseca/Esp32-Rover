@@ -2,13 +2,14 @@
 #include "web_pages.h"
 #include "controllers/tank_controller.h"
 #include "config/config.h"
+#include "utils/platform.h"
 #include <ArduinoJson.h>
-#include <Update.h>
 #include "freertos/semphr.h"
 
 extern TankController tankController;
 extern PendingConfig pendingConfig;
 extern volatile bool pendingReboot;
+extern volatile bool pendingNvsSave;
 
 // Mutex definido em main.cpp — protege o tankController contra acesso simultâneo
 // entre Core 0 (web callbacks) e Core 1 (TankControlTask).
@@ -38,10 +39,10 @@ bool WebServerManager::begin() {
         int attempts = 0;
         while (WiFi.status() != WL_CONNECTED && attempts < 20) {
             delay(500);
-            Serial.print(".");
+            ets_printf(".");
             attempts++;
         }
-        Serial.println();
+        ets_printf("\n");
 
         if (WiFi.status() == WL_CONNECTED) {
             tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Conectado com sucesso! IP do Rover: %s", WiFi.localIP().toString().c_str());
@@ -204,12 +205,13 @@ void WebServerManager::setupRoutes() {
 
     // IMU / Sensors API
     server.on("/api/sensors", HTTP_GET, [](AsyncWebServerRequest *request){
+
         Types::ImuData imuSnapshot;
         Types::GpsData gpsSnapshot;
         Types::CompassData compassSnapshot;
         Types::MotorCommands motorSnapshot;
         bool isArmedSnapshot = false;
-        
+
         if (tankMutex == nullptr) {
             request->send(503, "application/json", "{\"error\":\"system not ready\"}");
             return;
@@ -315,14 +317,13 @@ void WebServerManager::setupRoutes() {
         pendingConfig.debugEnabled = !doc["debug"].isNull() ? (bool)doc["debug"] : Config::DEBUG_ENABLED;
         pendingConfig.darkTheme    = !doc["dark_theme"].isNull() ? (bool)doc["dark_theme"] : Config::DARK_THEME;
         
-        bool armedSnapshot;
-        if (tankMutex != nullptr && xSemaphoreTake(tankMutex, 0) == pdTRUE) {
-            armedSnapshot = tankController.isSystemArmed();
-            xSemaphoreGive(tankMutex);
+        // Armed: se não veio no JSON, mantém o estado atual (nunca fallback para false)
+        if (!doc["armed"].isNull()) {
+            pendingConfig.systemArmed = (bool)doc["armed"];
         } else {
-            armedSnapshot = false; // Fallback se ocupado, idealmente mantemos o estado
+            // Leitura de volatile bool é atômica no ESP32 — seguro sem mutex
+            pendingConfig.systemArmed = tankController.isSystemArmed();
         }
-        pendingConfig.systemArmed   = !doc["armed"].isNull() ? (bool)doc["armed"] : armedSnapshot;
 
         if (!doc["wifi_mode"].isNull()) {
             pendingConfig.wifiChange = true;
@@ -343,42 +344,12 @@ void WebServerManager::setupRoutes() {
         }
     });
 
-    // ── OTA: upload de firmware via browser ──────────────────────────────────────
-    server.on("/update", HTTP_POST,
-        [](AsyncWebServerRequest *request) {
-            bool ok = !Update.hasError();
-            request->send(200, "application/json",
-                ok ? "{\"status\":\"ok\"}"
-                   : String("{\"status\":\"error\",\"message\":\"") + Update.errorString() + "\"}");
-            if (ok) pendingReboot = true;
-        },
-        [](AsyncWebServerRequest *request, const String& filename,
-           size_t index, uint8_t *data, size_t len, bool final) {
-            if (index == 0) {
-                if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
-                    tankController.setSystemArmed(false);
-                    xSemaphoreGive(tankMutex);
-                }
-                if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
-                    tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR,
-                        "OTA begin falhou: %s", Update.errorString());
-                } else {
-                    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO,
-                        "OTA iniciado: %s", filename.c_str());
-                }
-            }
-            if (Update.isRunning()) { Update.write(data, len); }
-            if (final) {
-                if (Update.end(true)) {
-                    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO,
-                        "OTA concluido: %u bytes. Reiniciando...", index + len);
-                } else {
-                    tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR,
-                        "OTA end falhou: %s", Update.errorString());
-                }
-            }
-        }
-    );
+    // ── Reboot manual: persiste configurações e reinicia ─────────────────────────
+    server.on("/api/reboot", HTTP_POST, [](AsyncWebServerRequest *request){
+        request->send(200, "application/json", "{\"status\":\"rebooting\"}");
+        pendingNvsSave = true;
+        pendingReboot  = true;
+    });
 
     // Not found
     server.onNotFound([](AsyncWebServerRequest *request){
@@ -413,11 +384,12 @@ void WebServerManager::onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *c
         case WS_EVT_DATA: {
             // Mensagens do cliente → comandos leves (ex: calibrate)
             AwsFrameInfo *info = (AwsFrameInfo*)arg;
-            if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
-                data[len] = 0; // null-terminate
-                String msg = (char*)data;
-
-
+            if (info->final && info->index == 0 && info->len == len
+                && info->opcode == WS_TEXT && len < 256) {
+                // Copia para buffer local com null-termination segura (sem overflow)
+                char msgBuf[256];
+                memcpy(msgBuf, data, len);
+                msgBuf[len] = '\0';
             }
             break;
         }

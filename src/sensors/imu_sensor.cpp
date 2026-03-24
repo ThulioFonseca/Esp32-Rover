@@ -66,6 +66,7 @@ void ImuSensor::update() {
     if (!initialized) return;
 
     unsigned long now = millis();
+    if (now - lastUpdateMs < 40) return; // 25 Hz max — reduz carga I2C sem afetar o filtro complementar
     float dt = (now - lastUpdateMs) / 1000.0f;
     lastUpdateMs = now;
 
@@ -75,6 +76,7 @@ void ImuSensor::update() {
 
 const Types::ImuData& ImuSensor::getData() const { return data; }
 bool ImuSensor::isDataValid() const               { return data.isValid; }
+bool ImuSensor::needsReinit() const               { return errorCount >= Config::I2C_SENSOR_ERROR_THRESHOLD; }
 
 // ── I2C helpers ───────────────────────────────────────────────────────────────
 
@@ -104,8 +106,8 @@ void ImuSensor::readSensorData() {
     uint8_t buf[14];
     if (!readRegisters(REG_DATA_START, 14, buf)) {
         errorCount++;
-        if (errorCount == SENSOR_ERROR_THRESHOLD) {
-            tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "MPU-6500 (0x%02X) perdeu comunicação após %d erros consecutivos. Dados inválidos — aguardando recuperação.", Config::IMU_I2C_ADDR, SENSOR_ERROR_THRESHOLD);
+        if (errorCount == Config::I2C_SENSOR_ERROR_THRESHOLD) {
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "MPU-6500 (0x%02X) perdeu comunicação após %d erros consecutivos. Dados inválidos — aguardando recuperação.", Config::IMU_I2C_ADDR, Config::I2C_SENSOR_ERROR_THRESHOLD);
             data.isValid = false;
         }
         return;

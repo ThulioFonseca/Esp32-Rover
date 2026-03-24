@@ -1,5 +1,6 @@
 #include "debug_manager.h"
 #include "../config/config.h"
+#include "../utils/platform.h"
 #include <Arduino.h>
 
 DebugManager::DebugManager() : isEnabled(false), logHead(0), logTail(0), logCount(0), serialMutex(NULL), _prevNThrottle(0.0f), _prevNSteering(0.0f) {}
@@ -12,14 +13,12 @@ void DebugManager::initialize() {
 }
 
 void DebugManager::logf(LogLevel level, const char* format, ...) {
-  char buf[256];
+  char msgBuf[192];
   va_list args;
   va_start(args, format);
-  vsnprintf(buf, sizeof(buf), format, args);
+  vsnprintf(msgBuf, sizeof(msgBuf), format, args);
   va_end(args);
 
-  String message(buf);
-  
   const char* levelStr;
   switch (level) {
     case LOG_LEVEL_DEBUG: levelStr = "DEBUG"; break;
@@ -29,55 +28,67 @@ void DebugManager::logf(LogLevel level, const char* format, ...) {
     default:              levelStr = "LOG";   break;
   }
 
-  // Adiciona tempo simplificado (HH:MM:SS format ou apenas ms)
   unsigned long ms = millis();
   unsigned long s = ms / 1000;
-  char tsBuf[32];
-  snprintf(tsBuf, sizeof(tsBuf), "[%02lu:%02lu:%02lu]", (s / 3600), ((s % 3600) / 60), (s % 60));
-  
-  String finalMsg = String(tsBuf) + " [" + levelStr + "] " + message;
 
-  // Serial protegida por mutex — evita intercalação de saídas entre Core 0 e Core 1.
-  if (isEnabled && serialMutex != NULL) {
-    if (xSemaphoreTake(serialMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-      Serial.println(finalMsg);
-      xSemaphoreGive(serialMutex);
+  // Formata a linha final diretamente em char[] (zero alocação heap)
+  char finalMsg[MAX_LOG_LINE_LEN];
+  snprintf(finalMsg, sizeof(finalMsg), "[%02lu:%02lu:%02lu] [%s] %s",
+           (s / 3600), ((s % 3600) / 60), (s % 60), levelStr, msgBuf);
+
+  // Mutex protege Serial E o buffer circular (evita race condition entre cores)
+  if (serialMutex != NULL && xSemaphoreTake(serialMutex, 0) == pdTRUE) {
+    if (isEnabled) {
+      ets_printf("%s\n", finalMsg);
     }
-    // Se o mutex não puder ser adquirido em 10 ms, a mensagem segue apenas no buffer circular.
-  }
 
-  // Insere no buffer circular
-  logBuffer[logHead] = finalMsg;
-  logHead = (logHead + 1) % MAX_LOG_LINES;
-  
-  if (logCount < MAX_LOG_LINES) {
-    logCount++;
-  } else {
-    logTail = (logTail + 1) % MAX_LOG_LINES; // Sobrescreve o mais antigo
+    // Insere no buffer circular (protegido pelo mesmo mutex)
+    strncpy(logBuffer[logHead], finalMsg, MAX_LOG_LINE_LEN - 1);
+    logBuffer[logHead][MAX_LOG_LINE_LEN - 1] = '\0';
+    logHead = (logHead + 1) % MAX_LOG_LINES;
+
+    if (logCount < MAX_LOG_LINES) {
+      logCount++;
+    } else {
+      logTail = (logTail + 1) % MAX_LOG_LINES;
+    }
+
+    xSemaphoreGive(serialMutex);
   }
+  // Mutex não disponível imediatamente — mensagem descartada (melhor que corromper estado)
 }
 
 String DebugManager::getLogs() {
-  String output = "";
-  if (logCount == 0) {
-    return "Sem logs no momento.\n";
-  }
+  if (serialMutex == NULL) return "Mutex não inicializado.\n";
 
-  // Pre-aloca tamanho aproximado para eficiência
-  output.reserve(logCount * 50);
+  String output;
+  if (xSemaphoreTake(serialMutex, 0) == pdTRUE) {
+    if (logCount == 0) {
+      xSemaphoreGive(serialMutex);
+      return "Sem logs no momento.\n";
+    }
 
-  int current = logTail;
-  for (int i = 0; i < logCount; i++) {
-    output += logBuffer[current] + "\n";
-    current = (current + 1) % MAX_LOG_LINES;
+    output.reserve(logCount * MAX_LOG_LINE_LEN);
+    int current = logTail;
+    for (int i = 0; i < logCount; i++) {
+      output += logBuffer[current];
+      output += '\n';
+      current = (current + 1) % MAX_LOG_LINES;
+    }
+    xSemaphoreGive(serialMutex);
+  } else {
+    return "Log buffer ocupado.\n";
   }
   return output;
 }
 
 void DebugManager::clearLogs() {
-  logHead = 0;
-  logTail = 0;
-  logCount = 0;
+  if (serialMutex != NULL && xSemaphoreTake(serialMutex, 0) == pdTRUE) {
+    logHead = 0;
+    logTail = 0;
+    logCount = 0;
+    xSemaphoreGive(serialMutex);
+  }
 }
 
 void DebugManager::setEnabled(bool enabled) {

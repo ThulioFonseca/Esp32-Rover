@@ -30,14 +30,16 @@ public:
     const Types::ImuData& getData() const;
     bool isDataValid() const;
 
+    // Retorna true se o sensor acumulou erros suficientes para justificar recovery I2C
+    bool needsReinit() const;
+
 private:
     TwoWire*          i2c;
     Types::ImuData    data;
     bool              initialized;
     unsigned long     lastUpdateMs;
 
-    uint8_t errorCount;
-    static constexpr uint8_t SENSOR_ERROR_THRESHOLD = 5;
+    uint16_t errorCount;
 
     // Filtro complementar roll/pitch (gyro + acelerômetro)
     bool  _compReady;                          // false até a primeira medição

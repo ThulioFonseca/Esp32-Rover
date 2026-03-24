@@ -72,7 +72,7 @@ void GpsSensor::update() {
             data.timeSecond = gps.time.second();
         }
         if (gps.date.isValid() && gps.time.isValid()) {
-            data.dateTime = getFormattedDateTime();
+            formatDateTime(data.dateTime, sizeof(data.dateTime));
         }
 
         data.lastUpdate = millis();
@@ -84,22 +84,16 @@ void GpsSensor::update() {
     }
 }
 
-String GpsSensor::getFormattedDateTime() {
-    char dateTimeBuffer[30];
+void GpsSensor::formatDateTime(char* buf, size_t bufLen) {
     // Formata no padrão ISO 8601 com timezone configurável via Config::GPS_TIMEZONE_OFFSET_HOURS
     int hour = gps.time.hour() + Config::GPS_TIMEZONE_OFFSET_HOURS;
     if (hour < 0)  hour += 24;
     if (hour > 23) hour -= 24;
 
-    // Constrói sufixo "+HH:00" ou "-HH:00" dinamicamente
-    char tzSuffix[7];
-    snprintf(tzSuffix, sizeof(tzSuffix), "%+03d:00", (int)Config::GPS_TIMEZONE_OFFSET_HOURS);
-
-    snprintf(dateTimeBuffer, sizeof(dateTimeBuffer), "%04d-%02d-%02dT%02d:%02d:%02d%s",
+    snprintf(buf, bufLen, "%04d-%02d-%02dT%02d:%02d:%02d%+03d:00",
              gps.date.year(), gps.date.month(), gps.date.day(),
-             hour, gps.time.minute(), gps.time.second(), tzSuffix);
-
-    return String(dateTimeBuffer);
+             hour, gps.time.minute(), gps.time.second(),
+             (int)Config::GPS_TIMEZONE_OFFSET_HOURS);
 }
 
 const Types::GpsData& GpsSensor::getData() const {
