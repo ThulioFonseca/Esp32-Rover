@@ -651,10 +651,10 @@ input:checked + .slider:before {
     flex-direction: column;
     position: relative;
     border: 1px solid var(--card-border);
-    background: radial-gradient(ellipse 75% 65% at 50% 50%,
-        #060f08 0%,
-        #040b06 35%,
-        #020604 60%,
+    background: radial-gradient(ellipse 80% 70% at 50% 50%,
+        #060810 0%,
+        #040608 40%,
+        #020406 70%,
         #000000 100%);
     box-shadow: inset 0 0 100px rgba(0,0,0,0.8);
     transition: border-color 0.4s ease;
@@ -790,7 +790,7 @@ input:checked + .slider:before {
 
 .center-text-readout { font-family: var(--font-mono); font-size: 14px; fill: var(--primary); font-weight: bold; text-shadow: 0 0 5px rgba(0,0,0,0.8); transition: fill 0.2s; }
 .center-text-label { font-family: var(--font-mono); font-size: 8px; fill: var(--text-dim); }
-.compass-group { transform: translate(300px, 80px); }
+.compass-group { transform: translate(300px, 515px); }
 
 /* GPU acceleration hints for HUD animated elements (Fase 2) */
 #horizon-group {
@@ -805,6 +805,7 @@ input:checked + .slider:before {
 
 #roll-pointer {
     will-change: transform;
+    transform-box: view-box;
     transform-origin: 300px 300px;
 }
 

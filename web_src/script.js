@@ -670,26 +670,13 @@ function initHUD() {
         pitchGroup.innerHTML = '';
         // Width table indexed by absI/10 (index 1..9 → 10°..90°)
         var pitchWidths = [0, 55, 65, 80, 68, 58, 52, 46, 42, 75];
-        for (var i = -90; i <= 90; i += 5) {
+        for (var i = -90; i <= 90; i += 10) {
             var absI = Math.abs(i);
             var g = document.createElementNS("http://www.w3.org/2000/svg", "g");
 
             if (i === 0) {
                 // Horizon: wide split line, thicker, wider center gap
                 g.innerHTML = '<path d="M -130 0 L -28 0 M 28 0 L 130 0" class="stroke-main" stroke-width="2.5"/>';
-                pitchGroup.appendChild(g);
-                continue;
-            }
-
-            if (absI % 10 !== 0) {
-                // 5° minor ticks: short center-only marks
-                var yPos5 = i * 3;
-                if (i > 0) {
-                    g.innerHTML = '<line x1="-14" y1="' + (-yPos5) + '" x2="14" y2="' + (-yPos5) + '" class="stroke-dim" stroke-width="0.8"/>';
-                } else {
-                    var absY5 = Math.abs(yPos5);
-                    g.innerHTML = '<line x1="-14" y1="' + absY5 + '" x2="14" y2="' + absY5 + '" class="stroke-dim" stroke-width="0.8" stroke-dasharray="4 3"/>';
-                }
                 pitchGroup.appendChild(g);
                 continue;
             }
@@ -733,8 +720,8 @@ function initHUD() {
             const xPos = index * 40;
             const mark = document.createElementNS("http://www.w3.org/2000/svg", "g");
             mark.innerHTML =
-                '<line x1="' + xPos + '" y1="-5" x2="' + xPos + '" y2="-15" class="stroke-main" stroke-width="1" />' +
-                '<text x="' + xPos + '" y="-20" class="center-text-readout" font-size="10" text-anchor="middle">' + h + '</text>';
+                '<line x1="' + xPos + '" y1="25" x2="' + xPos + '" y2="35" class="stroke-main" stroke-width="1" />' +
+                '<text x="' + xPos + '" y="55" class="center-text-readout" font-size="10" text-anchor="middle">' + h + '</text>';
             compassTapeEl.appendChild(mark);
         });
 
@@ -793,18 +780,18 @@ function updateHUD(data) {
     const pitchY = pitch * 3;
     if (DOM.horizonGroup) {
         DOM.horizonGroup.style.transform =
-            'translate(300px, 300px) rotate(' + (-roll) + 'deg) translate(0px, ' + pitchY + 'px)';
+            'translate(300px, 330px) rotate(' + (-roll) + 'deg) translate(0px, ' + pitchY + 'px)';
     }
-    // Roll pointer: rotates around (300,300) to point to current bank angle on the fixed arc
+    // Roll pointer: polygon tip at SVG (300,125); CSS transform-box:view-box + origin:300px 300px
     if (DOM.rollPointer) {
-        DOM.rollPointer.style.transform = 'translate(300px, 300px) rotate(' + roll + 'deg)';
+        DOM.rollPointer.style.transform = 'rotate(' + roll + 'deg)';
     }
 
     if(DOM.hudPitch) DOM.hudPitch.textContent = 'P: ' + (pitch > 0 ? '+' : '') + pitch.toFixed(1) + '°';
     if(DOM.hudRoll)  DOM.hudRoll.textContent  = 'R: ' + (roll  > 0 ? '+' : '') + roll.toFixed(1)  + '°';
 
-    const speedDash = Math.min((speed / 50) * 222, 222);
-    document.getElementById('arc-speed').setAttribute('stroke-dasharray', speedDash + ' 400');
+    const speedDash = Math.min((speed / 50) * 200, 200);
+    document.getElementById('arc-speed').setAttribute('stroke-dasharray', speedDash + ' 200');
     document.getElementById('center-spd').textContent = data.gps.valid ? speed.toFixed(1) : '--';
 
     // CSS transform para compass tape — usa heading do compass externo (HMC5883L)

@@ -168,7 +168,7 @@
                                             <stop offset="30%" stop-color="white" /><stop offset="70%" stop-color="white" />
                                             <stop offset="90%" stop-color="black" /><stop offset="100%" stop-color="black" />
                                         </linearGradient>
-                                        <mask id="compass-fade" maskUnits="objectBoundingBox"><rect x="-150" y="-50" width="300" height="100" fill="url(#compass-fade-gradient)" /></mask>
+                                        <mask id="compass-fade" maskUnits="objectBoundingBox"><rect x="-150" y="-20" width="300" height="100" fill="url(#compass-fade-gradient)" /></mask>
 
                                         <linearGradient id="window-fade-gradient" x1="0" y1="0" x2="0" y2="600" gradientUnits="userSpaceOnUse">
                                             <stop offset="0%" stop-color="black" /><stop offset="22%" stop-color="black" />
@@ -176,74 +176,100 @@
                                             <stop offset="85%" stop-color="black" /><stop offset="100%" stop-color="black" />
                                         </linearGradient>
                                         <mask id="window-fade" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="600"><rect x="0" y="0" width="600" height="600" fill="url(#window-fade-gradient)" /></mask>
+                                        <filter id="glow-green" x="-30%" y="-30%" width="160%" height="160%">
+                                            <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+                                            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                                        </filter>
+                                        <filter id="glow-warn" x="-30%" y="-30%" width="160%" height="160%">
+                                            <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+                                            <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                                        </filter>
                                     </defs>
 
-                                    <!-- ROLL ARC — fixed graduated semicircle, centered at (300,300) R=125 -->
-                                    <!-- Spans θ=-90° (left) through θ=0° (top) to θ=+90° (right) -->
+                                    <!-- ROLL ARC — R=220, ±60° span, top at (300,80), endpoints at y=190 -->
+                                    <!-- Arc center (300,300): x=300+220·sin(θ), y=300−220·cos(θ) -->
                                     <g id="roll-arc">
-                                        <!-- Arc: M(175,300) → top (300,175) → (425,300), clockwise sweep -->
-                                        <path d="M 175 300 A 125 125 0 0 1 425 300" class="stroke-dim" stroke-width="1" fill="none"/>
-                                        <!-- Minor ticks ±10°, ±20° (outer r=125, inner r=119) -->
-                                        <line x1="321.7" y1="176.9" x2="320.6" y2="181.8" class="stroke-dim" stroke-width="1"/>
-                                        <line x1="278.3" y1="176.9" x2="279.4" y2="181.8" class="stroke-dim" stroke-width="1"/>
-                                        <line x1="342.8" y1="182.5" x2="340.7" y2="188.3" class="stroke-dim" stroke-width="1"/>
-                                        <line x1="257.2" y1="182.5" x2="259.3" y2="188.3" class="stroke-dim" stroke-width="1"/>
-                                        <!-- Major ticks ±30°, ±60° (outer r=125, inner r=109) -->
-                                        <line x1="362.5" y1="191.8" x2="354.5" y2="205.6" class="stroke-main" stroke-width="1.5"/>
-                                        <line x1="237.5" y1="191.8" x2="245.5" y2="205.6" class="stroke-main" stroke-width="1.5"/>
-                                        <line x1="408.3" y1="237.5" x2="394.3" y2="245.5" class="stroke-main" stroke-width="1.5"/>
-                                        <line x1="191.7" y1="237.5" x2="205.7" y2="245.5" class="stroke-main" stroke-width="1.5"/>
-                                        <!-- Medium ticks ±45° (outer r=125, inner r=113) -->
-                                        <line x1="388.4" y1="211.6" x2="379.8" y2="220.2" class="stroke-main" stroke-width="1"/>
-                                        <line x1="211.6" y1="211.6" x2="220.2" y2="220.2" class="stroke-main" stroke-width="1"/>
-                                        <!-- Endpoint lines ±90° (outer r=125, inner r=112) -->
-                                        <line x1="425" y1="300" x2="412" y2="300" class="stroke-main" stroke-width="2"/>
-                                        <line x1="175" y1="300" x2="188" y2="300" class="stroke-main" stroke-width="2"/>
-                                        <!-- Labels at r=138 (outside arc) -->
-                                        <text x="369" y="183" class="center-text-readout" font-size="9" text-anchor="start" opacity="0.55">30</text>
-                                        <text x="231" y="183" class="center-text-readout" font-size="9" text-anchor="end" opacity="0.55">30</text>
-                                        <text x="420" y="235" class="center-text-readout" font-size="9" text-anchor="start" opacity="0.55">60</text>
-                                        <text x="180" y="235" class="center-text-readout" font-size="9" text-anchor="end" opacity="0.55">60</text>
-                                        <!-- Fixed zero-bank reference triangle (open, pointing down toward center) -->
-                                        <polygon points="300,183 294,170 306,170" fill="none" stroke="var(--primary)" stroke-width="1.5" opacity="0.7"/>
+                                        <path d="M 109.5 190 A 220 220 0 0 1 490.5 190" class="stroke-dim" stroke-width="1" fill="none"/>
+                                        <!-- Minor ticks ±10° (outer R=220, inner R=214) -->
+                                        <line x1="338.2" y1="83.3" x2="337.1" y2="89.2" class="stroke-dim" stroke-width="1"/>
+                                        <line x1="261.8" y1="83.3" x2="262.9" y2="89.2" class="stroke-dim" stroke-width="1"/>
+                                        <!-- Minor ticks ±20° (outer R=220, inner R=214) -->
+                                        <line x1="375.2" y1="93.3" x2="373.2" y2="98.9" class="stroke-dim" stroke-width="1"/>
+                                        <line x1="224.8" y1="93.3" x2="226.8" y2="98.9" class="stroke-dim" stroke-width="1"/>
+                                        <!-- Major ticks ±30° (outer R=220, inner R=205) -->
+                                        <line x1="410.0" y1="109.5" x2="402.5" y2="122.5" class="stroke-main" stroke-width="1.5"/>
+                                        <line x1="190.0" y1="109.5" x2="197.5" y2="122.5" class="stroke-main" stroke-width="1.5"/>
+                                        <!-- Major ticks ±45° (outer R=220, inner R=205) -->
+                                        <line x1="455.6" y1="144.4" x2="445.0" y2="155.0" class="stroke-main" stroke-width="1.5"/>
+                                        <line x1="144.4" y1="144.4" x2="155.0" y2="155.0" class="stroke-main" stroke-width="1.5"/>
+                                        <!-- Endpoint ticks ±60° (outer R=220, inner R=205) -->
+                                        <line x1="490.5" y1="190.0" x2="477.6" y2="197.5" class="stroke-main" stroke-width="2"/>
+                                        <line x1="109.5" y1="190.0" x2="122.4" y2="197.5" class="stroke-main" stroke-width="2"/>
+                                        <!-- Labels at r=233 (outside arc) -->
+                                        <text x="416" y="102" class="center-text-readout" font-size="9" text-anchor="start" opacity="0.55">30</text>
+                                        <text x="184" y="102" class="center-text-readout" font-size="9" text-anchor="end" opacity="0.55">30</text>
+                                        <text x="465" y="139" class="center-text-readout" font-size="9" text-anchor="start" opacity="0.55">45</text>
+                                        <text x="135" y="139" class="center-text-readout" font-size="9" text-anchor="end" opacity="0.55">45</text>
+                                        <!-- Fixed zero-bank reference (hollow triangle, tip at arc top) -->
+                                        <polygon points="300,80 294,67 306,67" fill="none" stroke="var(--primary)" stroke-width="1.5" opacity="0.65"/>
                                     </g>
-                                    <!-- Roll pointer — moving indicator, JS animates with rotate(+rollDeg) around (300,300) -->
-                                    <g id="roll-pointer" style="will-change: transform;">
-                                        <polygon points="0,-131 -5,-119 5,-119" fill="var(--primary)" opacity="0.9"/>
+                                    <!-- Roll pointer: polygon tip at SVG (300,80) = arc top at R=220 -->
+                                    <!-- CSS: transform-box:view-box + transform-origin:300px 300px -->
+                                    <!-- JS: rotate(+rollDeg) only — pivots around SVG center (300,300) -->
+                                    <g id="roll-pointer">
+                                        <polygon points="300,80 294,95 306,95" fill="var(--danger)" opacity="0.9"/>
                                     </g>
 
                                     <text x="300" y="210" id="critical-warn-msg">CRITICAL TILT ANGLE</text>
 
                                     <g class="compass-group" mask="url(#compass-fade)">
-                                        <path d="M -150 0 L 150 0" class="stroke-main" />
-                                        <polygon points="0,0 -8,-10 8,-10" fill="var(--danger)" />
+                                        <path d="M -150 20 L 150 20" class="stroke-main" />
+                                        <polygon points="0,10 -8,-0 8,-0" fill="var(--danger)" />
                                         <g id="compass-tape"></g>
                                     </g>
 
-                                    <g transform="translate(300, 100)">
+                                    <g transform="translate(300, 58)">
                                         <text x="-25" y="0" class="center-text-readout" font-size="13" id="ret-pitch" text-anchor="end">P: 0°</text>
                                         <circle cx="0" cy="-4" r="1.5" fill="var(--primary-dim)" style="transition: fill 0.2s;" />
                                         <text x="25" y="0" class="center-text-readout" font-size="13" id="ret-roll" text-anchor="start">R: 0°</text>
                                     </g>
 
-                                    <path d="M 150 400 A 141.42 141.42 0 0 1 150 200" class="stroke-dim" stroke-width="6" />
-                                    <path d="M 150 400 A 141.42 141.42 0 0 1 150 200" class="stroke-main" stroke-width="6" id="arc-speed" stroke-dasharray="0 450" />
-                                    <text x="90" y="296" class="center-text-readout" id="center-spd" text-anchor="end">0.0</text>
-                                    <text x="90" y="312" class="center-text-label" text-anchor="end">KM/H</text>
+                                    <!-- SPEED BAR — left, vertical tactical bar, x=110, y=400→200 (200px) -->
+                                    <line x1="110" y1="450" x2="110" y2="250" class="stroke-dim" stroke-width="2"/>
+                                    <!-- Cap marks (top/bottom) -->
+                                    <line x1="102" y1="250" x2="118" y2="250" class="stroke-main" stroke-width="1.5"/>
+                                    <line x1="102" y1="450" x2="118" y2="450" class="stroke-main" stroke-width="1.5"/>
+                                    <!-- Graduation ticks: 25%(y=350), 50%(y=300), 75%(y=250) -->
+                                    <line x1="103" y1="400" x2="117" y2="400" class="stroke-dim" stroke-width="1"/>
+                                    <line x1="99" y1="350" x2="121" y2="350" class="stroke-dim" stroke-width="1.5"/>
+                                    <line x1="103" y1="300" x2="117" y2="300" class="stroke-dim" stroke-width="1"/>
+                                    <!-- Active fill (grows upward from y=400; dasharray D fills D px from bottom) -->
+                                    <line x1="110" y1="450" x2="110" y2="250" class="stroke-main" stroke-width="3" id="arc-speed" stroke-dasharray="0 200" filter="url(#glow-green)"/>
+                                    <text x="85" y="348" class="center-text-readout" id="center-spd" text-anchor="end" font-size="20">0.0</text>
+                                    <text x="85" y="363" class="center-text-label" text-anchor="end" font-size="8" letter-spacing="2">KM/H</text>
 
-                                    <path d="M 450 400 A 141.42 141.42 0 0 0 450 200" class="stroke-dim" stroke-width="6" />
-                                    <path d="M 450 400 A 141.42 141.42 0 0 0 450 200" stroke="var(--warning)" fill="none" stroke-width="6" id="arc-batt" stroke-dasharray="222 450" />
-                                    <text x="510" y="296" class="center-text-readout" style="fill: var(--warning);" id="center-bat" text-anchor="start">PWR</text>
-                                    <text x="510" y="312" class="center-text-label" text-anchor="start">SYSTEM</text>
+                                    <!-- POWER BAR — right, vertical tactical bar, x=490, y=400→200 (200px) -->
+                                    <line x1="490" y1="450" x2="490" y2="250" class="stroke-dim" stroke-width="2"/>
+                                    <!-- Cap marks (top/bottom) -->
+                                    <line x1="482" y1="250" x2="498" y2="250" class="stroke-main" stroke-width="1.5"/>
+                                    <line x1="482" y1="450" x2="498" y2="450" class="stroke-main" stroke-width="1.5"/>
+                                    <!-- Graduation ticks: 25%(y=350), 50%(y=300), 75%(y=250) -->
+                                    <line x1="483" y1="400" x2="497" y2="400" class="stroke-dim" stroke-width="1"/>
+                                    <line x1="479" y1="350" x2="501" y2="350" class="stroke-dim" stroke-width="1.5"/>
+                                    <line x1="483" y1="300" x2="497" y2="300" class="stroke-dim" stroke-width="1"/>
+                                    <!-- Active fill (static ~50% = 100px; grows upward from y=400) -->
+                                    <line x1="490" y1="450" x2="490" y2="250" stroke="var(--warning)" stroke-width="3" id="arc-batt" stroke-dasharray="100 200" filter="url(#glow-warn)"/>
+                                    <text x="515" y="348" class="center-text-readout" id="center-bat" text-anchor="start" font-size="20" style="fill: var(--warning);">PWR</text>
+                                    <text x="515" y="363" class="center-text-label" text-anchor="start" font-size="8" letter-spacing="2">SYSTEM</text>
 
-                                    <g transform="translate(300, 300)">
+                                    <g transform="translate(300, 330)">
                                         <circle cx="0" cy="0" r="3" fill="var(--danger)" />
                                         <path d="M -20 0 L -8 0 M 8 0 L 20 0 M 0 -20 L 0 -8" class="stroke-main" stroke-width="2" />
                                         <path d="M -50 0 L -30 0 L -30 10 M 50 0 L 30 0 L 30 10" class="stroke-dim" />
                                     </g>
 
                                     <g mask="url(#window-fade)">
-                                        <g id="horizon-group" transform="translate(300, 300)">
+                                        <g id="horizon-group" transform="translate(300, 330)">
                                             <g id="pitch-ladder"></g>
                                         </g>
                                     </g>
