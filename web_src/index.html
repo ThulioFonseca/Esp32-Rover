@@ -178,6 +178,40 @@
                                         <mask id="window-fade" maskUnits="userSpaceOnUse" x="0" y="0" width="600" height="600"><rect x="0" y="0" width="600" height="600" fill="url(#window-fade-gradient)" /></mask>
                                     </defs>
 
+                                    <!-- ROLL ARC — fixed graduated semicircle, centered at (300,300) R=125 -->
+                                    <!-- Spans θ=-90° (left) through θ=0° (top) to θ=+90° (right) -->
+                                    <g id="roll-arc">
+                                        <!-- Arc: M(175,300) → top (300,175) → (425,300), clockwise sweep -->
+                                        <path d="M 175 300 A 125 125 0 0 1 425 300" class="stroke-dim" stroke-width="1" fill="none"/>
+                                        <!-- Minor ticks ±10°, ±20° (outer r=125, inner r=119) -->
+                                        <line x1="321.7" y1="176.9" x2="320.6" y2="181.8" class="stroke-dim" stroke-width="1"/>
+                                        <line x1="278.3" y1="176.9" x2="279.4" y2="181.8" class="stroke-dim" stroke-width="1"/>
+                                        <line x1="342.8" y1="182.5" x2="340.7" y2="188.3" class="stroke-dim" stroke-width="1"/>
+                                        <line x1="257.2" y1="182.5" x2="259.3" y2="188.3" class="stroke-dim" stroke-width="1"/>
+                                        <!-- Major ticks ±30°, ±60° (outer r=125, inner r=109) -->
+                                        <line x1="362.5" y1="191.8" x2="354.5" y2="205.6" class="stroke-main" stroke-width="1.5"/>
+                                        <line x1="237.5" y1="191.8" x2="245.5" y2="205.6" class="stroke-main" stroke-width="1.5"/>
+                                        <line x1="408.3" y1="237.5" x2="394.3" y2="245.5" class="stroke-main" stroke-width="1.5"/>
+                                        <line x1="191.7" y1="237.5" x2="205.7" y2="245.5" class="stroke-main" stroke-width="1.5"/>
+                                        <!-- Medium ticks ±45° (outer r=125, inner r=113) -->
+                                        <line x1="388.4" y1="211.6" x2="379.8" y2="220.2" class="stroke-main" stroke-width="1"/>
+                                        <line x1="211.6" y1="211.6" x2="220.2" y2="220.2" class="stroke-main" stroke-width="1"/>
+                                        <!-- Endpoint lines ±90° (outer r=125, inner r=112) -->
+                                        <line x1="425" y1="300" x2="412" y2="300" class="stroke-main" stroke-width="2"/>
+                                        <line x1="175" y1="300" x2="188" y2="300" class="stroke-main" stroke-width="2"/>
+                                        <!-- Labels at r=138 (outside arc) -->
+                                        <text x="369" y="183" class="center-text-readout" font-size="9" text-anchor="start" opacity="0.55">30</text>
+                                        <text x="231" y="183" class="center-text-readout" font-size="9" text-anchor="end" opacity="0.55">30</text>
+                                        <text x="420" y="235" class="center-text-readout" font-size="9" text-anchor="start" opacity="0.55">60</text>
+                                        <text x="180" y="235" class="center-text-readout" font-size="9" text-anchor="end" opacity="0.55">60</text>
+                                        <!-- Fixed zero-bank reference triangle (open, pointing down toward center) -->
+                                        <polygon points="300,183 294,170 306,170" fill="none" stroke="var(--primary)" stroke-width="1.5" opacity="0.7"/>
+                                    </g>
+                                    <!-- Roll pointer — moving indicator, JS animates with rotate(+rollDeg) around (300,300) -->
+                                    <g id="roll-pointer" style="will-change: transform;">
+                                        <polygon points="0,-131 -5,-119 5,-119" fill="var(--primary)" opacity="0.9"/>
+                                    </g>
+
                                     <text x="300" y="210" id="critical-warn-msg">CRITICAL TILT ANGLE</text>
 
                                     <g class="compass-group" mask="url(#compass-fade)">

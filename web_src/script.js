@@ -15,6 +15,7 @@ const DOM = {
     // HUD SVG animated elements (Fase 2: GPU-accelerated via CSS transform)
     horizonGroup: null,
     compassTape: null,
+    rollPointer: null,
 
     // Sensors Tab Elements
     imuRoll: null, imuPitch: null, imuTemp: null,
@@ -667,32 +668,56 @@ function initHUD() {
     const pitchGroup = document.getElementById('pitch-ladder');
     if (pitchGroup) {
         pitchGroup.innerHTML = '';
-        for (let i = -120; i <= 120; i += 10) {
-            const y = i * 3;
-            const absI = Math.abs(i);
-            const isInverted = absI > 90;  // beyond zenith/nadir — inverted territory
+        // Width table indexed by absI/10 (index 1..9 → 10°..90°)
+        var pitchWidths = [0, 55, 65, 80, 68, 58, 52, 46, 42, 75];
+        for (var i = -90; i <= 90; i += 5) {
+            var absI = Math.abs(i);
+            var g = document.createElementNS("http://www.w3.org/2000/svg", "g");
 
-            let w;
-            if (i === 0)            w = 120;  // horizon line
-            else if (absI === 90)   w = 90;   // zenith/nadir — wider special mark
-            else if (absI % 20 === 0) w = 70; // major marks
-            else                    w = 40;   // minor marks
-
-            const strokeClass = isInverted ? 'stroke-dim' : 'stroke-main';
-            const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
             if (i === 0) {
-                g.innerHTML = '<path d="M-' + w + ',0 L-30,0 M30,0 L' + w + ',0" class="stroke-main" stroke-width="2" />';
-            } else if (i > 0) {
+                // Horizon: wide split line, thicker, wider center gap
+                g.innerHTML = '<path d="M -130 0 L -28 0 M 28 0 L 130 0" class="stroke-main" stroke-width="2.5"/>';
+                pitchGroup.appendChild(g);
+                continue;
+            }
+
+            if (absI % 10 !== 0) {
+                // 5° minor ticks: short center-only marks
+                var yPos5 = i * 3;
+                if (i > 0) {
+                    g.innerHTML = '<line x1="-14" y1="' + (-yPos5) + '" x2="14" y2="' + (-yPos5) + '" class="stroke-dim" stroke-width="0.8"/>';
+                } else {
+                    var absY5 = Math.abs(yPos5);
+                    g.innerHTML = '<line x1="-14" y1="' + absY5 + '" x2="14" y2="' + absY5 + '" class="stroke-dim" stroke-width="0.8" stroke-dasharray="4 3"/>';
+                }
+                pitchGroup.appendChild(g);
+                continue;
+            }
+
+            // 10° increments: main pitch bars with T-bar end caps
+            var yPos = i * 3;
+            var w = pitchWidths[absI / 10] || 50;
+            var labelSize = 11;
+
+            if (i > 0) {
+                // Nose up: solid lines with upward end caps
                 g.innerHTML =
-                    '<path d="M-' + w + ',-' + y + ' L-20,-' + y + ' M20,-' + y + ' L' + w + ',-' + y + '" class="' + strokeClass + '" />' +
-                    '<text x="-' + (w + 15) + '" y="-' + (y - 4) + '" class="center-text-readout" font-size="10" text-anchor="end">' + i + '</text>' +
-                    '<text x="' + (w + 15) + '" y="-' + (y - 4) + '" class="center-text-readout" font-size="10" text-anchor="start">' + i + '</text>';
+                    '<path d="M-' + w + ',' + (-yPos) + ' L-24,' + (-yPos) +
+                    ' M24,' + (-yPos) + ' L' + w + ',' + (-yPos) +
+                    ' M-' + w + ',' + (-yPos) + ' l0,-6' +
+                    ' M' + w + ',' + (-yPos) + ' l0,-6" class="stroke-main" stroke-width="1.5"/>' +
+                    '<text x="-' + (w + 12) + '" y="' + (-yPos + 4) + '" class="center-text-readout" font-size="' + labelSize + '" text-anchor="end">' + i + '</text>' +
+                    '<text x="' + (w + 12) + '" y="' + (-yPos + 4) + '" class="center-text-readout" font-size="' + labelSize + '" text-anchor="start">' + i + '</text>';
             } else {
-                const absY = Math.abs(y);
+                // Nose down: dashed lines with downward end caps
+                var absY = Math.abs(yPos);
                 g.innerHTML =
-                    '<path d="M-' + w + ',' + absY + ' L-20,' + absY + ' L-20,' + (absY + 5) + ' M20,' + (absY + 5) + ' L20,' + absY + ' L' + w + ',' + absY + '" class="' + strokeClass + '" stroke-dasharray="6" />' +
-                    '<text x="-' + (w + 15) + '" y="' + (absY + 4) + '" class="center-text-readout" font-size="10" text-anchor="end">' + absI + '</text>' +
-                    '<text x="' + (w + 15) + '" y="' + (absY + 4) + '" class="center-text-readout" font-size="10" text-anchor="start">' + absI + '</text>';
+                    '<path d="M-' + w + ',' + absY + ' L-24,' + absY +
+                    ' M24,' + absY + ' L' + w + ',' + absY +
+                    ' M-' + w + ',' + absY + ' l0,6' +
+                    ' M' + w + ',' + absY + ' l0,6" class="stroke-main" stroke-dasharray="8 4" stroke-width="1.5"/>' +
+                    '<text x="-' + (w + 12) + '" y="' + (absY + 4) + '" class="center-text-readout" font-size="' + labelSize + '" text-anchor="end">' + absI + '</text>' +
+                    '<text x="' + (w + 12) + '" y="' + (absY + 4) + '" class="center-text-readout" font-size="' + labelSize + '" text-anchor="start">' + absI + '</text>';
             }
             pitchGroup.appendChild(g);
         }
@@ -719,6 +744,7 @@ function initHUD() {
 
     // Cache do horizon-group (criado no HTML, não precisa esperar initHUD)
     DOM.horizonGroup = document.getElementById('horizon-group');
+    DOM.rollPointer  = document.getElementById('roll-pointer');
 
     // Boot sequence
     const lines = ['b1', 'b2', 'b3', 'b4', 'b5'];
@@ -768,6 +794,10 @@ function updateHUD(data) {
     if (DOM.horizonGroup) {
         DOM.horizonGroup.style.transform =
             'translate(300px, 300px) rotate(' + (-roll) + 'deg) translate(0px, ' + pitchY + 'px)';
+    }
+    // Roll pointer: rotates around (300,300) to point to current bank angle on the fixed arc
+    if (DOM.rollPointer) {
+        DOM.rollPointer.style.transform = 'translate(300px, 300px) rotate(' + roll + 'deg)';
     }
 
     if(DOM.hudPitch) DOM.hudPitch.textContent = 'P: ' + (pitch > 0 ? '+' : '') + pitch.toFixed(1) + '°';
