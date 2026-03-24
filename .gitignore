@@ -36,3 +36,6 @@ Thumbs.db
 # Personal configs
 config_personal.h
 secrets.h
+
+# Auto-generated at build time
+src/config/version.h

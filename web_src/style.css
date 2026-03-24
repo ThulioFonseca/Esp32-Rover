@@ -102,6 +102,8 @@ h1 {
     transition: color 0.4s ease;
 }
 h1 span { color: var(--accent-color); transition: color 0.4s ease; }
+.header-title { display: flex; flex-direction: column; }
+.fw-version { font-size: 0.65em; color: var(--text-muted); letter-spacing: 0.05em; margin-top: 1px; transition: color 0.4s ease; }
 
 .connection-status {
     padding: 6px 14px;

@@ -3,6 +3,7 @@
 #include "controllers/tank_controller.h"
 #include "config/config.h"
 #include "utils/platform.h"
+#include "config/version.h"
 #include <ArduinoJson.h>
 #include "freertos/semphr.h"
 
@@ -121,6 +122,7 @@ void WebServerManager::setupRoutes() {
     // System Info API — usa apenas valores em cache (sem acessos SPI no hot path)
     server.on("/api/sysinfo", HTTP_GET, [](AsyncWebServerRequest *request){
         JsonDocument doc;
+        doc["firmware_version"] = FIRMWARE_VERSION;
         doc["chip_model"]    = hw_chip_model;
         doc["chip_revision"] = hw_chip_revision;
         doc["cpu_freq"]      = hw_cpu_freq;

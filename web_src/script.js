@@ -381,6 +381,7 @@ function updateSysInfo() {
         .then(function(data) {
             const list = document.getElementById('sysinfo-list');
             list.innerHTML =
+                '<li><span class="label">Firmware</span> <span class="value">' + (data.firmware_version || '—') + '</span></li>' +
                 '<li><span class="label">Chip Model</span> <span class="value">' + data.chip_model + ' (Rev ' + data.chip_revision + ')</span></li>' +
                 '<li><span class="label">CPU Freq</span> <span class="value">' + data.cpu_freq + ' MHz</span></li>' +
                 '<li><span class="label">RAM (Total)</span> <span class="value">' + formatBytes(data.heap_total) + '</span></li>' +
