@@ -45,12 +45,12 @@ private:
   // I2C bus recovery
   uint16_t i2cConsecutiveErrors;
   uint8_t  recoveryAttempts;
-  static constexpr uint16_t I2C_RECOVERY_THRESHOLD = 50;
+  static constexpr uint16_t I2C_RECOVERY_THRESHOLD = 10; // ~200ms a 50Hz antes de tentar recovery
   void recoverI2CBus();
 
   template<typename T>
   T snapshotUnderMutex(const T& src) const {
-      T copy;
+      T copy = src; // fallback com último valor conhecido caso o mutex esteja ocupado
       if (sensorMutex != NULL && xSemaphoreTake(sensorMutex, 0) == pdTRUE) {
           copy = src;
           xSemaphoreGive(sensorMutex);

@@ -39,14 +39,6 @@ namespace Types {
     MotorCommands();
   };
 
-  struct SensorData {
-    float batteryVoltage;
-    bool isValid;
-    unsigned long lastUpdate;
-
-    SensorData();
-  };
-
   struct ImuData {
     // Acelerômetro (g)
     float accelX, accelY, accelZ;

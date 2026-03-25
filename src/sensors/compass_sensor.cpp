@@ -86,9 +86,9 @@ void CompassSensor::update() {
         float declinationAngle = 0.0f;
         headingRad += declinationAngle;
 
-        // Ajuste de ângulo para 0-2PI
-        if (headingRad < 0) headingRad += 2 * PI;
-        if (headingRad > 2 * PI) headingRad -= 2 * PI;
+        // Ajuste de ângulo para 0-2PI (while garante correção mesmo para valores multi-volta)
+        while (headingRad < 0)       headingRad += 2 * PI;
+        while (headingRad >= 2 * PI) headingRad -= 2 * PI;
 
         float rawDeg = headingRad * 180.0f / M_PI;
 

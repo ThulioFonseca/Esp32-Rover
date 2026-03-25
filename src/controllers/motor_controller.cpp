@@ -7,8 +7,13 @@
 MotorController::MotorController() : isInitialized(false) {}
 
 bool MotorController::initialize() {
-    escLeft.attach(Pins::ESC_LEFT);
-    escRight.attach(Pins::ESC_RIGHT);
+    if (escLeft.attach(Pins::ESC_LEFT) == -1) {
+        return false;
+    }
+    if (escRight.attach(Pins::ESC_RIGHT) == -1) {
+        escLeft.detach();
+        return false;
+    }
     isInitialized = true;
     return true;
 }

@@ -17,6 +17,7 @@ private:
     unsigned long previousMillis;
     int stateStep;
     bool ledState;
+    bool initialized;
 
 public:
     StatusLedManager(uint8_t ledPin);

@@ -21,8 +21,8 @@ bool GpsSensor::initialize() {
 void GpsSensor::update() {
     bool newData = false;
     
-    // Leitura não-bloqueante: consome todos os caracteres disponíveis no buffer serial
-    while (gpsSerial.available() > 0) {
+    // Leitura não-bloqueante: limita bytes por chamada para não bloquear o loop de controle
+    for (int i = 0; i < 64 && gpsSerial.available() > 0; i++) {
         if (gps.encode(gpsSerial.read())) {
             newData = true;
         }

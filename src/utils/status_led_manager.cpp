@@ -13,11 +13,13 @@ StatusLedManager::StatusLedManager(uint8_t ledPin) {
     previousMillis = 0;
     stateStep = 0;
     ledState = false;
+    initialized = false;
 }
 
 void StatusLedManager::begin() {
     pinMode(pin, OUTPUT);
     digitalWrite(pin, LOW);
+    initialized = true;
 }
 
 void StatusLedManager::setStatus(LedStatus status) {
@@ -33,6 +35,7 @@ void StatusLedManager::setStatus(LedStatus status) {
 }
 
 void StatusLedManager::update() {
+    if (!initialized) return;
     if (currentStatus == LED_STATUS_OFF) return;
 
     unsigned long currentMillis = millis();

@@ -66,7 +66,7 @@ void ImuSensor::update() {
     if (!initialized) return;
 
     unsigned long now = millis();
-    if (now - lastUpdateMs < 40) return; // 25 Hz max — reduz carga I2C sem afetar o filtro complementar
+    if (now - lastUpdateMs < 20) return; // 50 Hz — sincroniza com o loop de controle principal
     float dt = (now - lastUpdateMs) / 1000.0f;
     lastUpdateMs = now;
 

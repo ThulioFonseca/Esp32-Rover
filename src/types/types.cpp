@@ -20,9 +20,6 @@ namespace Types {
       leftPWM(Config::ESC_NEUTRAL), 
       rightPWM(Config::ESC_NEUTRAL) {}
 
-  SensorData::SensorData()
-    : batteryVoltage(0.0f), isValid(false), lastUpdate(0) {}
-
   ImuData::ImuData()
     : accelX(0.0f), accelY(0.0f), accelZ(0.0f),
       gyroX(0.0f),  gyroY(0.0f),  gyroZ(0.0f),

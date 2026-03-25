@@ -1,3 +1,14 @@
+// ─── UTILITÁRIOS DE SEGURANÇA ─────────────────────────────────────────────────
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // ─── DOM CACHE LAYER ──────────────────────────────────────────────────────────
 // Pré-aloca todas as referências de elementos do DOM que são atualizados a 20Hz
 // Evita 600+ buscas no DOM por segundo, reduzindo CPU do navegador em ~60%
@@ -85,6 +96,7 @@ let wsConnected = false;
 let wsReconnectTimer = null;
 let wsLastMessageTime = 0;
 let sensorFailCount = 0;
+let wsReconnectDelay = 1000; // backoff exponencial: começa em 1s, max 30s
 
 function connectWebSocket() {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
@@ -97,6 +109,7 @@ function connectWebSocket() {
 
     ws.onopen = function() {
         wsConnected = true;
+        wsReconnectDelay = 1000; // reseta backoff na conexão bem-sucedida
         clearTimeout(wsReconnectTimer);
         updateConnectionStatus(true);
     };
@@ -125,7 +138,8 @@ function connectWebSocket() {
     ws.onclose = function() {
         wsConnected = false;
         updateConnectionStatus(false);
-        wsReconnectTimer = setTimeout(connectWebSocket, 2000);
+        wsReconnectTimer = setTimeout(connectWebSocket, wsReconnectDelay);
+        wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000); // backoff exponencial, max 30s
     };
 
     ws.onerror = function() {
@@ -382,9 +396,9 @@ function updateSysInfo() {
         .then(function(data) {
             const list = document.getElementById('sysinfo-list');
             list.innerHTML =
-                '<li><span class="label">Firmware</span> <span class="value">' + (data.firmware_version || '—') + '</span></li>' +
-                '<li><span class="label">Chip Model</span> <span class="value">' + data.chip_model + ' (Rev ' + data.chip_revision + ')</span></li>' +
-                '<li><span class="label">CPU Freq</span> <span class="value">' + data.cpu_freq + ' MHz</span></li>' +
+                '<li><span class="label">Firmware</span> <span class="value">' + escapeHtml(data.firmware_version || '—') + '</span></li>' +
+                '<li><span class="label">Chip Model</span> <span class="value">' + escapeHtml(data.chip_model) + ' (Rev ' + escapeHtml(data.chip_revision) + ')</span></li>' +
+                '<li><span class="label">CPU Freq</span> <span class="value">' + escapeHtml(data.cpu_freq) + ' MHz</span></li>' +
                 '<li><span class="label">RAM (Total)</span> <span class="value">' + formatBytes(data.heap_total) + '</span></li>' +
                 '<li><span class="label">Flash (Total)</span> <span class="value">' + formatBytes(data.flash_size) + '</span></li>' +
                 '<li><span class="label">Sketch Size</span> <span class="value">' + formatBytes(data.sketch_size) + '</span></li>' +
@@ -392,16 +406,16 @@ function updateSysInfo() {
 
             const netList = document.getElementById('netinfo-list');
             let netHTML =
-                '<li><span class="label">Mode</span> <span class="value">' + data.mode + '</span></li>' +
-                '<li><span class="label">SSID</span> <span class="value">' + data.ssid + '</span></li>' +
-                '<li><span class="label">IP Address</span> <span class="value">' + data.ip + '</span></li>' +
-                '<li><span class="label">MAC Address</span> <span class="value">' + data.mac + '</span></li>' +
-                '<li><span class="label">Channel</span> <span class="value">' + data.channel + '</span></li>';
+                '<li><span class="label">Mode</span> <span class="value">' + escapeHtml(data.mode) + '</span></li>' +
+                '<li><span class="label">SSID</span> <span class="value">' + escapeHtml(data.ssid) + '</span></li>' +
+                '<li><span class="label">IP Address</span> <span class="value">' + escapeHtml(data.ip) + '</span></li>' +
+                '<li><span class="label">MAC Address</span> <span class="value">' + escapeHtml(data.mac) + '</span></li>' +
+                '<li><span class="label">Channel</span> <span class="value">' + escapeHtml(data.channel) + '</span></li>';
 
             if (data.mode === 'Station') {
-                netHTML += '<li><span class="label">Gateway</span> <span class="value">' + data.gateway + '</span></li>';
+                netHTML += '<li><span class="label">Gateway</span> <span class="value">' + escapeHtml(data.gateway) + '</span></li>';
             } else {
-                netHTML += '<li><span class="label">Clients</span> <span class="value">' + data.clients + '</span></li>';
+                netHTML += '<li><span class="label">Clients</span> <span class="value">' + escapeHtml(data.clients) + '</span></li>';
             }
             netList.innerHTML = netHTML;
         })
@@ -554,7 +568,7 @@ function updateLogs() {
                     color = '#2196f3';
                 }
 
-                html += '<div style="color: ' + color + '; font-weight: ' + weight + '; margin-bottom: 2px; border-bottom: 1px solid rgba(255,255,255,0.03);">' + line + '</div>';
+                html += '<div style="color: ' + color + '; font-weight: ' + weight + '; margin-bottom: 2px; border-bottom: 1px solid rgba(255,255,255,0.03);">' + escapeHtml(line) + '</div>';
             });
 
             if (logConsole.innerHTML !== html) {
@@ -795,7 +809,7 @@ function updateHUD(data) {
     document.getElementById('center-spd').textContent = data.gps.valid ? speed.toFixed(1) : '--';
 
     // CSS transform para compass tape — usa heading do compass externo (HMC5883L)
-    const compassHeading = data.compass.heading;
+    const compassHeading = Math.max(0, Math.min(360, parseFloat(data.compass.heading) || 0));
     const compassValid   = data.compass.valid;
     const fullCircleWidth = 12 * 40;
     const yawOffset = -fullCircleWidth - ((compassHeading / 360) * fullCircleWidth);
@@ -932,5 +946,13 @@ document.addEventListener('DOMContentLoaded', function() {
     startPolling();
     startRenderLoop();      // Fase 2: inicia loop RAF desacoplado
     connectWebSocket();     // Inicia conexão push realtime via WebSocket
+});
+
+window.addEventListener('beforeunload', function() {
+    if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+    }
+    if (ws) ws.close();
 });
 

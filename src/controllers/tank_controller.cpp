@@ -56,11 +56,12 @@ bool TankController::initialize() {
         if (!gpsSensor.initialize()) {
             debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "GpsSensor não inicializado — verifique conexão UART.");
         }
+    }
 
-        debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando CompassSensor...");
-        if (!compassSensor.initialize(&Wire)) {
-            debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "CompassSensor (HMC5883L, I2C 0x1E) não detectado — desabilitado até próximo reboot.");
-        }
+    // Compass compartilha o barramento I2C com o IMU — inicializado independentemente do GPS
+    debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando CompassSensor...");
+    if (!compassSensor.initialize(&Wire)) {
+        debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "CompassSensor (HMC5883L, I2C 0x1E) não detectado — desabilitado até próximo reboot.");
     }
 
     debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Iniciando sequência de armamento...");
@@ -103,10 +104,8 @@ void TankController::setSystemArmed(bool armed) {
 void TankController::updateSensors() {
     // 1. Leituras I2C/UART lentas — SEM mutex (podem demorar até 20ms com timeout)
     if (Config::IMU_ENABLED) imuSensor.update();
-    if (Config::GPS_ENABLED) {
-        gpsSensor.update();
-        compassSensor.update();
-    }
+    if (Config::GPS_ENABLED) gpsSensor.update();
+    compassSensor.update(); // Compass usa I2C independentemente do GPS
 
     // 2. Cópia atômica para snapshots — mutex breve (microsegundos)
     if (sensorMutex != NULL && xSemaphoreTake(sensorMutex, 0) == pdTRUE) {
@@ -118,7 +117,7 @@ void TankController::updateSensors() {
 
     // 3. Verifica saúde do barramento I2C — recovery se necessário
     bool imuFailing     = Config::IMU_ENABLED && imuSensor.needsReinit();
-    bool compassFailing = Config::GPS_ENABLED && compassSensor.needsReinit();
+    bool compassFailing = compassSensor.needsReinit();
 
     if (imuFailing || compassFailing) {
         i2cConsecutiveErrors++;

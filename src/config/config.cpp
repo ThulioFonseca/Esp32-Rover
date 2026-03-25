@@ -17,6 +17,11 @@ namespace Config {
   void loadPreferences() {
     preferences.begin("rover", true); // true = apenas leitura
     WIFI_MODE = preferences.getUChar("wifi_mode", 0);
+    if (WIFI_MODE > 1) WIFI_MODE = 0; // apenas AP(0) ou STA(1) são válidos
+
+    IBUS_TIMEOUT_MS = preferences.getULong("ibus_timeout", 1000);
+    if (IBUS_TIMEOUT_MS < 100 || IBUS_TIMEOUT_MS > 5000) IBUS_TIMEOUT_MS = 1000;
+
     STA_SSID = preferences.getString("sta_ssid", "");
     STA_PASS = preferences.getString("sta_pass", "");
     DEBUG_ENABLED = preferences.getBool("debug", false);

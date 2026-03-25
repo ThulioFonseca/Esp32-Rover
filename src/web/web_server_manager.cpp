@@ -328,10 +328,25 @@ void WebServerManager::setupRoutes() {
         }
 
         if (!doc["wifi_mode"].isNull()) {
+            uint8_t reqMode = (uint8_t)doc["wifi_mode"];
+            if (reqMode > 1) {
+                request->send(400, "application/json", "{\"error\":\"wifi_mode invalido\"}");
+                return;
+            }
+            String reqSSID = doc["sta_ssid"] | Config::STA_SSID;
+            String reqPass = doc["sta_pass"] | Config::STA_PASS;
+            if (reqMode == 1 && reqSSID.length() > 32) {
+                request->send(400, "application/json", "{\"error\":\"ssid muito longo (max 32)\"}");
+                return;
+            }
+            if (reqPass.length() > 64) {
+                request->send(400, "application/json", "{\"error\":\"senha muito longa (max 64)\"}");
+                return;
+            }
             pendingConfig.wifiChange = true;
-            pendingConfig.wifiMode   = doc["wifi_mode"];
-            pendingConfig.wifiSSID   = doc["sta_ssid"] | Config::STA_SSID;
-            pendingConfig.wifiPass   = doc["sta_pass"] | Config::STA_PASS;
+            pendingConfig.wifiMode   = reqMode;
+            pendingConfig.wifiSSID   = reqSSID;
+            pendingConfig.wifiPass   = reqPass;
             requiresReboot = true;
         }
 
@@ -415,11 +430,6 @@ size_t WebServerManager::wsClientCount() const {
  *   - Sem String temporária que causa move semantics perigosa
  */
 
-// ── Fase 3: Buffer binário estático (121 bytes, little-endian) ───────────────
-// Protocolo: packet_type(1) | IMU(37) | GPS(32) | Compass(17) | Motors(8) | CH(21) | Sys(5)
-// Elimina serialização JSON (economiza ~230 bytes/frame × 20Hz = ~4.5 KB/s de banda)
-static uint8_t wsBinaryBuffer[Config::WS_BINARY_FRAME_SIZE];
-
 void WebServerManager::broadcastSensorData() {
     static uint8_t _cleanupTick = 0;
     if (++_cleanupTick >= 20) { // 20 × 50ms = 1 segundo
@@ -451,6 +461,8 @@ void WebServerManager::broadcastSensorData() {
     xSemaphoreGive(tankMutex);
 
     // ── 2. Packing binário com memcpy (evita UB de strict-aliasing) ──
+    // Buffer local na stack — elimina race condition do buffer estático compartilhado
+    uint8_t wsBinaryBuffer[Config::WS_BINARY_FRAME_SIZE];
     uint8_t* p = wsBinaryBuffer;
 
     auto writeU8  = [&](uint8_t  v) { *p++ = v; };
