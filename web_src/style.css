@@ -82,6 +82,10 @@
 
 * { box-sizing: border-box; }
 
+html {
+    overscroll-behavior: none;
+}
+
 body {
     font-family: 'Rajdhani', 'Arial Narrow', Arial, sans-serif;
     background-color: var(--base-bg);
@@ -89,6 +93,7 @@ body {
     margin: 0;
     padding: 0;
     -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
     transition: background-color 0.4s ease, color 0.4s ease;
     /* Tactical grid overlay */
     background-image:
@@ -234,8 +239,8 @@ h1 span { color: var(--accent-color); transition: color 0.4s ease; }
     box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.9);
 }
 
-.tab-content { display: none; animation: fadeIn 0.3s ease; }
-.tab-content.active { display: block; }
+.tab-content { display: none; height: 0; overflow: hidden; animation: fadeIn 0.3s ease; }
+.tab-content.active { display: block; height: auto; overflow: visible; }
 
 /* ─── DASHBOARD GRID ──────────────────────────────────────────────────────────── */
 
@@ -640,20 +645,54 @@ input:checked + .slider:before {
     box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.8);
 }
 
-/* ─── HUD OUTER FRAME ─────────────────────────────────────────────────────────── */
+/* ─── HOME LAYOUT (HUD + MAP side by side) ─────────────────────────────────────── */
 
-/* #hud-tab: no display/height overrides — lets .tab-content { display:none } work */
-#hud-tab {
-    padding: 0;
-    margin: 0;
+.home-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    height: 80vh;
+    min-height: 520px;
 }
+
+/* ─── HOME LAYOUT: scale-down HUD panels for the narrower (~418px) container ──── */
+
+.home-layout .svg-center {
+    width:  clamp(330px, 60.5vmin, 550px) !important;
+    height: clamp(330px, 60.5vmin, 550px) !important;
+}
+
+.home-layout .side-panel {
+    width: clamp(91px, 9vw, 115px);
+    padding: 6px 8px;
+    gap: 4px;
+}
+
+/* Tight edge offsets so panels never overlap the speed/power bars */
+.home-layout .panel-left       { left:   4px; }
+.home-layout .panel-right      { right:  4px; }
+.home-layout .panel-top-left   { left:   4px; top:    4px; }
+.home-layout .panel-top-right  { right:  4px; top:    4px; }
+.home-layout .panel-left,
+.home-layout .panel-right      { bottom: 4px; }
+
+.home-layout .panel-header          { font-size: 0.55rem; letter-spacing: 2px; margin-bottom: 3px; }
+.home-layout .data-row              { display: flex; justify-content: space-between; align-items: baseline; width: 100%; }
+.home-layout .data-label            { font-size: 0.47rem; }
+.home-layout .data-value            { font-size: 0.64rem; text-align: right; }
+.home-layout .data-value-small      { font-size: 0.56rem; text-align: right; }
+.home-layout .accel-item .data-label { font-size: 0.44rem; }
+.home-layout .accel-item .data-value { font-size: 0.58rem; }
+.home-layout .bar-bg                { height: 3px; margin-top: 1px; }
+
+/* ─── HUD OUTER FRAME ─────────────────────────────────────────────────────────── */
 
 /* .hud-frame: owns the height, flex column, CRT background */
 .hud-frame {
-    height: 85vh;
-    min-height: 600px;
+    height: 100%;
+    min-height: 0;
     overflow: hidden;
-    border-radius: 12px;
+    border-radius: 0;
     display: flex;
     flex-direction: column;
     position: relative;
@@ -673,13 +712,14 @@ input:checked + .slider:before {
     justify-content: space-between;
     align-items: center;
     padding: 5px 14px;
-    background: rgba(6, 15, 8, 0.85);
-    border-bottom: 1px solid rgba(0, 232, 122, 0.15);
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--header-border);
     font-family: 'JetBrains Mono', 'Courier New', monospace;
     font-size: 0.58rem;
     letter-spacing: 2px;
-    color: rgba(0, 232, 122, 0.5);
+    color: var(--text-muted);
     text-transform: uppercase;
+    transition: all 0.4s ease;
     z-index: 1001;
 }
 
@@ -744,7 +784,7 @@ input:checked + .slider:before {
 }
 .crt-tube-frame {
     position: absolute; inset: 0; pointer-events: none; z-index: 1000;
-    border-radius: 16px;
+    border-radius: 0;
     background:
         /* Glass glare — canonical CRT top-left reflection */
         radial-gradient(ellipse 45% 22% at 18% 10%,
@@ -934,8 +974,14 @@ input:checked + .slider:before {
     .connection-status { padding: 4px 10px; font-size: 0.65rem; }
 
     .tabs { flex-wrap: wrap; border-radius: 0; margin-bottom: 16px; }
-    .tab-btn { padding: 12px 6px; font-size: 0.75rem; flex: 1 1 50%; border-right: 1px solid var(--card-border); }
-    .tab-btn:nth-child(1), .tab-btn:nth-child(2) { border-bottom: 1px solid var(--card-border); }
+    /* 5 tabs: 3 on row 1, 2 on row 2 — no orphan on its own row */
+    .tab-btn { padding: 12px 6px; font-size: 0.75rem; flex: 1 1 33%; border-right: 1px solid var(--card-border); }
+    /* Row 1 bottom border (first 3) */
+    .tab-btn:nth-child(1),
+    .tab-btn:nth-child(2),
+    .tab-btn:nth-child(3) { border-bottom: 1px solid var(--card-border); }
+    /* Row 2 top border already covered by row 1's border-bottom; ensure last tab has no orphan right border */
+    .tab-btn:last-of-type { border-right: none; }
 
     .card { padding: 16px; }
     .dashboard-grid { gap: 14px; }
@@ -1067,22 +1113,64 @@ input:checked + .slider:before {
         margin-top: 3px;
     }
 
-    /* SAT-NAV mobile: header + minimap only */
-    .panel-top-right .data-row,
-    .panel-top-right .accel-row,
-    .panel-top-right .minimap-footer {
-        display: none;
-    }
-
-    #hud-minimap {
-        height: 90px;
-    }
-
     .minimap-zoom-btn {
         width: 20px;
         height: 20px;
         font-size: 13px;
     }
+}
+
+/* ─── HOME LAYOUT: mobile stack ──────────────────────────────────────────────── */
+/* Stacked scroll layout — HUD and map each fill the full viewport width as a square.
+   The page scrolls naturally; no height constraints on the grid container.
+   .home-layout .hud-frame has higher specificity than the 600px block's .hud-frame,
+   so it wins and the standalone HUD rules do not bleed in. */
+@media (max-width: 680px) {
+    .home-layout {
+        grid-template-columns: 1fr;
+        height: auto;
+        min-height: 0;
+        gap: 12px;
+    }
+
+    /* Portrait rectangle — same proportions as desktop (80vh tall, ~half-container wide ≈ 1:1.5) */
+    .home-layout .hud-frame {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1 / 1.5;
+        min-height: 0;
+        margin-left: 0;
+        margin-right: 0;
+    }
+
+    .home-layout .map-frame {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1 / 1.5;
+        min-height: 0;
+    }
+
+    /* SVG fills ~80% of viewport width — matches desktop fill density (SVG clips slightly) */
+    .home-layout .svg-center {
+        width:  clamp(280px, 80vw, 380px) !important;
+        height: clamp(280px, 80vw, 380px) !important;
+    }
+
+    /* Panels wide enough to display all info without overflow */
+    .home-layout .side-panel {
+        width: clamp(114px, 28.6vw, 150px);
+        padding: 5px 6px;
+        gap: 3px;
+    }
+
+    /* Fonts match desktop proportions — container is only ~18% narrower so no reduction needed */
+    .home-layout .panel-header          { font-size: 0.55rem; letter-spacing: 2px; margin-bottom: 3px; }
+    .home-layout .data-label            { font-size: 0.47rem; }
+    .home-layout .data-value            { font-size: 0.64rem; text-align: right; }
+    .home-layout .data-value-small      { font-size: 0.56rem; text-align: right; }
+    .home-layout .accel-item .data-label { font-size: 0.44rem; }
+    .home-layout .accel-item .data-value { font-size: 0.58rem; }
+    .home-layout .bar-bg                { height: 3px; margin-top: 1px; }
 }
 
 /* ─── RESPONSIVE: EXTRA SMALL / LANDSCAPE PHONE ──────────────────────────────── */
@@ -1120,76 +1208,101 @@ input:checked + .slider:before {
     }
 }
 
-/* ── GPS Mini-Map ─────────────────────────────────────────────────────────── */
-.minimap-wrap {
+/* ─── MAP FRAME (theme-aware, no CRT effects) ───────────────────────────────── */
+
+.map-frame {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+    overflow: hidden;
+    transition: border-color 0.4s ease;
     position: relative;
-    margin: 2px 0;
 }
+
+.map-frame-bar {
+    flex-shrink: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 14px;
+    background: rgba(var(--accent-rgb), 0.04);
+    border-bottom: 1px solid var(--header-border);
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    font-size: 0.58rem;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    transition: all 0.4s ease;
+}
+
+.map-viewport {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+}
+
+/* ── GPS Map Canvas ─────────────────────────────────────────────────────────── */
 
 #hud-minimap {
     display: block;
     width: 100%;
-    height: 110px;
-    border: 1px solid var(--primary-dim);
-    background: #060c08;
+    height: 100%;
     image-rendering: pixelated;
     box-sizing: border-box;
 }
 
 .minimap-zoom-ctrl {
     position: absolute;
-    top: 4px;
-    right: 4px;
+    top: 8px;
+    right: 8px;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 4px;
     z-index: 5;
 }
 
 .minimap-zoom-btn {
-    width: 16px;
-    height: 16px;
-    background: rgba(0, 0, 0, 0.6);
-    border: 1px solid var(--primary-dim);
-    color: var(--primary);
-    font-size: 11px;
+    width: 28px;
+    height: 28px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    color: var(--accent-color);
+    font-size: 16px;
     line-height: 1;
     cursor: pointer;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: var(--font-mono);
-    transition: background 0.15s;
+    font-family: 'JetBrains Mono', monospace;
+    transition: background 0.15s, border-color 0.15s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.45);
 }
 
 .minimap-zoom-btn:hover {
-    background: rgba(0, 200, 100, 0.3);
+    background: rgba(var(--accent-rgb), 0.12);
+    border-color: var(--accent-color);
 }
 
 .fix-badge {
-    margin-left: auto;
-    font-size: 0.45rem;
-    padding: 1px 4px;
-    border-radius: 2px;
-    background: rgba(255, 50, 50, 0.15);
-    color: #ff5555;
+    font-size: 0.58rem;
+    padding: 2px 6px;
+    border-radius: 0;
+    background: rgba(var(--watermelon-rgb), 0.1);
+    color: var(--watermelon);
     font-weight: bold;
-    letter-spacing: 0.05em;
-    transition: background 0.3s, color 0.3s;
+    letter-spacing: 2px;
+    font-family: 'JetBrains Mono', monospace;
+    border: 1px solid var(--watermelon);
+    transition: background 0.3s, color 0.3s, border-color 0.3s;
 }
 
 .fix-badge.fix-ok {
     background: var(--accent-bg-glow);
     color: var(--accent-color);
-}
-
-.minimap-footer {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.5rem;
-    color: var(--text-dim);
-    font-weight: bold;
-    padding: 0 1px;
-    line-height: 1;
+    border-color: var(--accent-color);
 }

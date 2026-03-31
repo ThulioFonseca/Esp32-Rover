@@ -19,8 +19,8 @@ const DOM = {
     hudAccX: null, hudAccY: null, hudAccZ: null, hudSlopeVal: null,
     hudBarMotL: null, hudBarMotR: null, hudBarSlope: null,
     hudSysState: null, hudImuStat: null, hudImuTemp: null, hudSysLink: null,
-    hudGpsLat: null, hudGpsLng: null, hudGpsAlt: null, hudGpsSats: null,
-    hudGpsCrs: null, hudGpsSpd: null, hudSysUptime: null,
+    hudGpsLat: null, hudGpsLng: null, hudGpsSats: null,
+    hudGpsHdop: null, hudSysUptime: null,
     hudSysTimeLocal: null, hudGpsFixBadge: null,
 
     // HUD SVG animated elements (Fase 2: GPU-accelerated via CSS transform)
@@ -73,36 +73,51 @@ function latLngToTileXY(lat, lng, z) {
     return {x: x, y: y};
 }
 
+// Normalized Web Mercator helpers (0..1 range, matches OSM tile coordinates)
+function mercX(lng) { return (lng + 180) / 360; }
+function mercY(lat) { return 0.5 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (2 * Math.PI); }
+
 function getTileUrl(z, x, y) {
     var dark = document.body.getAttribute('data-theme') === 'dark';
-    if (dark) {
-        var s = 'abcd'[Math.floor(Math.random() * 4)];
-        return 'https://' + s + '.basemaps.cartocdn.com/rastertiles/voyager/' + z + '/' + x + '/' + y + '.png';
-    }
-    return 'https://tile.openstreetmap.org/' + z + '/' + x + '/' + y + '.png';
+    var s = 'abcd'[Math.floor(Math.random() * 4)];
+    var style = dark ? 'voyager' : 'light_all';
+    // @2x tiles are 512px native — crisp on all displays, no dprBoost needed
+    return 'https://' + s + '.basemaps.cartocdn.com/rastertiles/' + style + '/' + z + '/' + x + '/' + y + '@2x.png';
 }
 
 function chooseTileZoom(dlat) {
-    var z;
-    if (dlat < 0.008) z = 15;
-    else if (dlat < 0.03) z = 14;
-    else if (dlat < 0.1) z = 13;
-    else z = 12;
-    return z;
+    if (dlat < 0.005) return 17;
+    if (dlat < 0.015) return 16;
+    if (dlat < 0.05)  return 15;
+    if (dlat < 0.1)   return 14;
+    return 13;
 }
 
 function tryLoadOsmTiles(cLat, cLng, dlat) {
-    const z = chooseTileZoom(dlat);
+    const z = Math.min(18, chooseTileZoom(dlat));
+    const n = Math.pow(2, z);
     const c = latLngToTileXY(cLat, cLng, z);
     var theme = document.body.getAttribute('data-theme') || 'light';
     const gridKey = theme + '/' + z + '/' + c.x + '/' + c.y;
     if (gridKey === minimapGridKey) return;
     minimapGridKey = gridKey;
 
-    // Load 3×3 grid; reuse images already in cache (keyed with theme)
+    // Compute how many tiles are needed to fill the canvas.
+    // Uses the same Mercator scale as drawOsmTiles so coverage is always exact.
+    var W = (minimapCanvas && minimapCanvas.width)  || 400;
+    var H = (minimapCanvas && minimapCanvas.height) || 400;
+    var pad = 1.18;
+    var mcy_n = mercY(cLat + dlat * pad / 2); // north edge in Mercator
+    var mcy_s = mercY(cLat - dlat * pad / 2); // south edge in Mercator
+    var merc_scale = (mcy_s - mcy_n) / H;     // Mercator units per canvas pixel
+    var tileSize = 1 / n;                       // one tile in Mercator units
+    var rx = Math.ceil(W * merc_scale / tileSize / 2) + 1;
+    var ry = Math.ceil(H * merc_scale / tileSize / 2) + 1;
+
+    // Load the computed grid; reuse cached images
     const next = {};
-    for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -rx; dx <= rx; dx++) {
+        for (let dy = -ry; dy <= ry; dy++) {
             const tx = c.x + dx, ty = c.y + dy;
             const key = theme + '/' + z + '/' + tx + '/' + ty;
             if (minimapTiles[key]) {
@@ -122,7 +137,10 @@ function tryLoadOsmTiles(cLat, cLng, dlat) {
     minimapTiles = next;
 }
 
-function drawOsmTiles(ctx, W, H, cLat, cLng, scaleX, scaleY) {
+// drawOsmTiles: positions tiles using Web Mercator coordinates.
+// All axes use the same merc_scale — no independent x/y scaling — so tiles
+// render undistorted at any latitude (Mercator is conformal).
+function drawOsmTiles(ctx, W, H, mcx, mcy, merc_scale) {
     const parts = minimapGridKey.split('/');
     const z = parseInt(parts[1]); // parts[0] = theme
     const n = Math.pow(2, z);
@@ -130,17 +148,12 @@ function drawOsmTiles(ctx, W, H, cLat, cLng, scaleX, scaleY) {
         const img = minimapTiles[key];
         if (!img || !img.complete || !img.naturalWidth) continue;
         const kp = key.split('/');
-        const tx = parseInt(kp[2]), ty = parseInt(kp[3]); // kp[0]=theme, kp[1]=z
-        const lngMin = tx / n * 360 - 180;
-        const lngMax = lngMin + 360 / n;
-        const latMaxRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * ty / n)));
-        const latMinRad = Math.atan(Math.sinh(Math.PI * (1 - 2 * (ty + 1) / n)));
-        const latMax = latMaxRad * 180 / Math.PI;
-        const latMin = latMinRad * 180 / Math.PI;
-        const sx = W / 2 + (lngMin - cLng) * scaleX;
-        const ex = W / 2 + (lngMax - cLng) * scaleX;
-        const sy = H / 2 - (latMax - cLat) * scaleY;
-        const ey = H / 2 - (latMin - cLat) * scaleY;
+        const tx = parseInt(kp[2]), ty = parseInt(kp[3]);
+        // Tile corners in normalized Mercator (0..1 range matches mercX/mercY helpers)
+        const sx = W / 2 + (tx / n - mcx) / merc_scale;
+        const ex = W / 2 + ((tx + 1) / n - mcx) / merc_scale;
+        const sy = H / 2 + (ty / n - mcy) / merc_scale;
+        const ey = H / 2 + ((ty + 1) / n - mcy) / merc_scale;
         ctx.drawImage(img, sx, sy, ex - sx, ey - sy);
     }
 }
@@ -160,6 +173,17 @@ function drawVectorGrid(ctx, W, H, cLat, cLng, dlat, dlng, toXY) {
 
 function updateMiniMap(lat, lng, heading, valid) {
     if (!minimapCtx) return;
+    // Sync canvas resolution with its displayed size, accounting for devicePixelRatio
+    // for crisp rendering on retina/HiDPI displays.
+    var dpr = window.devicePixelRatio || 1;
+    var dw = Math.round(minimapCanvas.offsetWidth  * dpr);
+    var dh = Math.round(minimapCanvas.offsetHeight * dpr);
+    if (dw > 0 && dh > 0 && (minimapCanvas.width !== dw || minimapCanvas.height !== dh)) {
+        minimapCanvas.width  = dw;
+        minimapCanvas.height = dh;
+        minimapTiles   = {};
+        minimapGridKey = '';
+    }
     const W = minimapCanvas.width, H = minimapCanvas.height;
     const ctx = minimapCtx;
 
@@ -215,11 +239,19 @@ function updateMiniMap(lat, lng, heading, valid) {
     const cLat = (minLat + maxLat) / 2;
     const cLng = (minLng + maxLng) / 2;
     const pad = 1.18;
-    const scaleX = W / (dlng * pad);
-    const scaleY = H / (dlat * pad);
+
+    // Web Mercator projection — one uniform scale for both axes.
+    // merc_scale: normalized Mercator units per canvas pixel (derived from latitude span).
+    // Using a single scale eliminates tile distortion at non-equatorial latitudes.
+    const mcx = mercX(cLng);
+    const mcy = mercY(cLat);
+    const merc_scale = (mercY(cLat - dlat * pad / 2) - mercY(cLat + dlat * pad / 2)) / H;
 
     function toXY(pLat, pLng) {
-        return {x: W / 2 + (pLng - cLng) * scaleX, y: H / 2 - (pLat - cLat) * scaleY};
+        return {
+            x: W / 2 + (mercX(pLng) - mcx) / merc_scale,
+            y: H / 2 + (mercY(pLat) - mcy) / merc_scale
+        };
     }
 
     // Async tile grid load (no-op if center tile unchanged)
@@ -235,48 +267,100 @@ function updateMiniMap(lat, lng, heading, valid) {
         if (_i && _i.complete && _i.naturalWidth) { hasTile = true; break; }
     }
     if (hasTile) {
-        drawOsmTiles(ctx, W, H, cLat, cLng, scaleX, scaleY);
+        drawOsmTiles(ctx, W, H, mcx, mcy, merc_scale);
     } else {
         drawVectorGrid(ctx, W, H, cLat, cLng, dlat, dlng, toXY);
     }
 
-    // Draw track
+    // ── Track line ────────────────────────────────────────────────────────────
     if (minimapTrack.length > 1) {
+        var dpr = window.devicePixelRatio || 1;
         ctx.beginPath();
-        ctx.strokeStyle = 'rgba(0,255,100,0.35)';
-        ctx.lineWidth = 1.5;
-        const p0 = toXY(minimapTrack[0].lat, minimapTrack[0].lng);
+        ctx.strokeStyle = 'rgba(0, 232, 122, 0.55)';
+        ctx.lineWidth = 2 * dpr;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        var p0 = toXY(minimapTrack[0].lat, minimapTrack[0].lng);
         ctx.moveTo(p0.x, p0.y);
-        for (let i = 1; i < minimapTrack.length; i++) {
-            const p = toXY(minimapTrack[i].lat, minimapTrack[i].lng);
-            ctx.lineTo(p.x, p.y);
+        for (var i = 1; i < minimapTrack.length; i++) {
+            var pt = toXY(minimapTrack[i].lat, minimapTrack[i].lng);
+            ctx.lineTo(pt.x, pt.y);
         }
         ctx.stroke();
     }
 
-    // Draw rover marker (triangle pointing in heading direction)
-    const rv = toXY(lat, lng);
+    // ── Rover marker — fixed pixel size, heading-aware ────────────────────────
+    // Marker is intentionally viewport-size-independent (stays readable at any zoom).
+    var rv = toXY(lat, lng);
+    var dpr2 = window.devicePixelRatio || 1;
+    var R  = 14 * dpr2;   // outer circle radius
+    var Ra = 22 * dpr2;   // accuracy halo radius
+    var coneLen = 28 * dpr2; // heading cone length
+    var coneHalf = 0.38;    // cone half-angle in radians (~22°)
+    var headRad = heading * Math.PI / 180;
+
     ctx.save();
     ctx.translate(rv.x, rv.y);
-    ctx.rotate(heading * Math.PI / 180);
+
+    // 1 — Drop shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur  = 8 * dpr2;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 2 * dpr2;
+
+    // 2 — Accuracy halo (pulsing feel via semi-transparent ring)
     ctx.beginPath();
-    ctx.moveTo(0, -7);
-    ctx.lineTo(4.5, 5);
-    ctx.lineTo(-4.5, 5);
-    ctx.closePath();
-    ctx.fillStyle = '#00ff88';
-    ctx.strokeStyle = '#003a1a';
-    ctx.lineWidth = 1;
+    ctx.arc(0, 0, Ra, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 232, 122, 0.10)';
     ctx.fill();
+    ctx.strokeStyle = 'rgba(0, 232, 122, 0.30)';
+    ctx.lineWidth = 1.5 * dpr2;
     ctx.stroke();
+
+    // 3 — Heading cone (direction indicator)
+    ctx.shadowColor = 'transparent';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, coneLen, headRad - Math.PI / 2 - coneHalf, headRad - Math.PI / 2 + coneHalf);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(0, 232, 122, 0.35)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0, 232, 122, 0.80)';
+    ctx.lineWidth = 1 * dpr2;
+    ctx.stroke();
+
+    // 4 — Outer circle (white ring — contrasts on any tile colour)
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur  = 6 * dpr2;
+    ctx.fill();
+
+    // 5 — Inner filled circle (accent colour)
+    ctx.shadowColor = 'transparent';
+    ctx.beginPath();
+    ctx.arc(0, 0, R - 3 * dpr2, 0, Math.PI * 2);
+    ctx.fillStyle = '#00e87a';
+    ctx.fill();
+
+    // 6 — Center dot (dark, anchors the marker visually)
+    ctx.beginPath();
+    ctx.arc(0, 0, 3.5 * dpr2, 0, Math.PI * 2);
+    ctx.fillStyle = '#003a1a';
+    ctx.fill();
+
     ctx.restore();
 
-    // North indicator
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.font = 'bold 7px monospace';
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'top';
-    ctx.fillText('N\u2191', W - 3, 3);
+    // ── North indicator ───────────────────────────────────────────────────────
+    var dpr3 = window.devicePixelRatio || 1;
+    ctx.fillStyle = 'rgba(20,20,20,0.72)';
+    ctx.fillRect(W - 26 * dpr3, 4 * dpr3, 22 * dpr3, 16 * dpr3);
+    ctx.fillStyle = 'rgba(0, 232, 122, 0.9)';
+    ctx.font = 'bold ' + Math.round(9 * dpr3) + 'px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('N\u2191', W - 15 * dpr3, 12 * dpr3);
 }
 
 function startRenderLoop() {
@@ -888,6 +972,14 @@ function openTab(tabName) {
     document.getElementById(tabName).classList.add('active');
     event.currentTarget.classList.add('active');
 
+    // Reset scroll after DOM repaints — rAF ensures layout is recalculated first.
+    // All three resets needed: window covers Chrome/Android, body+documentElement cover iOS Safari.
+    requestAnimationFrame(function() {
+        window.scrollTo(0, 0);
+        document.body.scrollTop = 0;
+        document.documentElement.scrollTop = 0;
+    });
+
     if (tabName === 'home') {
         initHUD();
     }
@@ -926,7 +1018,7 @@ function initHUD() {
             // 10° increments: main pitch bars with T-bar end caps
             var yPos = i * 3;
             var w = pitchWidths[absI / 10] || 50;
-            var labelSize = 11;
+            var labelSize = 17;
 
             if (i > 0) {
                 // Nose up: solid lines with upward end caps
@@ -963,7 +1055,7 @@ function initHUD() {
             const mark = document.createElementNS("http://www.w3.org/2000/svg", "g");
             mark.innerHTML =
                 '<line x1="' + xPos + '" y1="25" x2="' + xPos + '" y2="35" class="stroke-main" stroke-width="1" />' +
-                '<text x="' + xPos + '" y="55" class="center-text-readout" font-size="10" text-anchor="middle">' + h + '</text>';
+                '<text x="' + xPos + '" y="55" class="center-text-readout" font-size="16" text-anchor="middle">' + h + '</text>';
             compassTapeEl.appendChild(mark);
         });
 
@@ -1077,10 +1169,8 @@ function updateHUD(data) {
     if (data.gps.valid) {
         if(DOM.hudGpsLat)  DOM.hudGpsLat.innerText  = data.gps.lat.toFixed(5) + '\xb0';
         if(DOM.hudGpsLng)  DOM.hudGpsLng.innerText  = data.gps.lng.toFixed(5) + '\xb0';
-        if(DOM.hudGpsAlt)  DOM.hudGpsAlt.innerText  = data.gps.alt.toFixed(0) + 'm';
         if(DOM.hudGpsSats) DOM.hudGpsSats.innerText = data.gps.satellites;
-        if(DOM.hudGpsCrs)  DOM.hudGpsCrs.innerText  = data.gps.course.toFixed(0);
-        if(DOM.hudGpsSpd)  DOM.hudGpsSpd.innerText  = data.gps.speed.toFixed(1);
+        if(DOM.hudGpsHdop) DOM.hudGpsHdop.innerText = data.gps.hdop !== undefined ? data.gps.hdop.toFixed(1) : '--';
         if (data.gps.time && DOM.hudSysTimeLocal) {
             DOM.hudSysTimeLocal.innerText = data.gps.time;
         }
@@ -1123,10 +1213,8 @@ document.addEventListener('DOMContentLoaded', function() {
     DOM.hudSysLink     = document.getElementById('hud-sys-link');
     DOM.hudGpsLat       = document.getElementById('hud-gps-lat');
     DOM.hudGpsLng       = document.getElementById('hud-gps-lng');
-    DOM.hudGpsAlt       = document.getElementById('hud-gps-alt');
     DOM.hudGpsSats      = document.getElementById('hud-gps-sats');
-    DOM.hudGpsCrs       = document.getElementById('hud-gps-crs');
-    DOM.hudGpsSpd       = document.getElementById('hud-gps-spd');
+    DOM.hudGpsHdop      = document.getElementById('hud-gps-hdop');
     DOM.hudSysUptime    = document.getElementById('hud-sys-uptime');
     DOM.hudSysTimeLocal = document.getElementById('hud-sys-time-local');
     DOM.hudGpsFixBadge  = document.getElementById('hud-gps-fix-badge');
