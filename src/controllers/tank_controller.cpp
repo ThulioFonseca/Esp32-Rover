@@ -39,7 +39,7 @@ bool TankController::initialize() {
     // Barramento I2C único compartilhado — IMU, Compass e sensores futuros
     debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando I2C SDA=%d SCL=%d @ %lu Hz", Pins::SDA, Pins::SCL, Config::I2C_FREQ_HZ);
     Wire.begin(Pins::SDA, Pins::SCL, Config::I2C_FREQ_HZ);
-    Wire.setTimeOut(20); // 20ms limite por transação I2C (padrão: 50ms)
+    Wire.setTimeOut(50); // 50ms limite por transação I2C
 
     // Sensores são opcionais — falha na inicialização não trava o boot.
     if (Config::IMU_ENABLED) {
@@ -210,7 +210,7 @@ void TankController::recoverI2CBus() {
 
     // 5. Reinicializa sensores e verifica resultado
     bool imuOk     = !Config::IMU_ENABLED || imuSensor.initialize(&Wire);
-    bool compassOk = !Config::GPS_ENABLED || compassSensor.initialize(&Wire);
+    bool compassOk = compassSensor.initialize(&Wire);
 
     if (imuOk && compassOk) {
         debugManager.logf(DebugManager::LOG_LEVEL_INFO,

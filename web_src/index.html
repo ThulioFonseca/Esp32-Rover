@@ -20,120 +20,22 @@
                 </div>
                 <small class="fw-version">GROUND CONTROL STATION &bull; FW {{FW_VERSION}}</small>
             </div>
-            <div class="connection-status" id="connectionStatus">OFFLINE</div>
+            <div class="header-controls">
+                <button class="armed-btn armed-false" id="armed-btn" onclick="toggleArmed()">DISARMED</button>
+                <div class="connection-status" id="connectionStatus">OFFLINE</div>
+            </div>
         </header>
 
         <nav class="tabs">
             <button class="tab-btn active" onclick="openTab('home')">HOME</button>
             <button class="tab-btn" onclick="openTab('radio')">RADIO</button>
             <button class="tab-btn" onclick="openTab('sensors')">SENSORS</button>
-            <button class="tab-btn" onclick="openTab('hud-tab')">HUD</button>
+            <button class="tab-btn" onclick="openTab('info')">INFO</button>
             <button class="tab-btn" onclick="openTab('config')">CONFIG</button>
         </nav>
 
         <main>
             <div id="home" class="tab-content active">
-                <div class="card" id="armed-card">
-                    <div class="setting-item" style="margin-bottom: 0;">
-                        <label for="armed-toggle" id="armed-label">SYSTEM STATUS</label>
-                        <label class="switch">
-                            <input type="checkbox" id="armed-toggle" onchange="toggleArmed()">
-                            <span class="slider round"></span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="dashboard-grid">
-                    <div class="card">
-                        <h3>System Info</h3>
-                        <ul id="sysinfo-list">
-                            <li>Loading...</li>
-                        </ul>
-                    </div>
-                    <div class="card">
-                        <h3>Network</h3>
-                        <ul id="netinfo-list">
-                            <li>Loading...</li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-
-            <div id="radio" class="tab-content">
-                <div class="dashboard-grid" style="grid-template-columns: 1fr;">
-                    <div class="card">
-                        <h3>Receiver Channels</h3>
-                        <div id="all-channels">Loading...</div>
-                    </div>
-                </div>
-            </div>
-
-            <div id="sensors" class="tab-content">
-                <div id="imu-offline" class="card" style="display:none;">
-                    <p style="margin:0; color:var(--watermelon); font-weight:bold; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 2px;">!! IMU SENSOR OFFLINE / DATA INVALID</p>
-                </div>
-
-                <!-- GPS Card span 2 columns if space allows -->
-                <div class="dashboard-grid" style="margin-bottom: 20px;">
-                    <div class="card" style="grid-column: 1 / -1;">
-                        <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--header-border); padding-bottom: 12px; margin-bottom: 16px;">
-                            <h3 style="border: none; padding: 0; margin: 0; border-left: none; letter-spacing: 3px;">GPS Location</h3>
-                            <span id="gps-status" style="font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 0; background: rgba(204, 26, 40, 0.1); color: var(--watermelon); text-transform: uppercase; letter-spacing: 2px; font-family: 'JetBrains Mono', monospace; border: 1px solid var(--watermelon);">NO FIX</span>
-                        </div>
-                        <div class="dashboard-grid">
-                            <div>
-                                <div class="sensor-row"><span class="label">Latitude</span><div class="sensor-data"><span class="value" id="gps-lat">--</span><span class="unit">°</span></div></div>
-                                <div class="sensor-row"><span class="label">Longitude</span><div class="sensor-data"><span class="value" id="gps-lng">--</span><span class="unit">°</span></div></div>
-                                <div class="sensor-row"><span class="label">Altitude</span><div class="sensor-data"><span class="value" id="gps-alt">--</span><span class="unit">m</span></div></div>
-                                <div class="sensor-row"><span class="label">Satellites</span><div class="sensor-data"><span class="value" id="gps-sats">0</span><span class="unit"></span></div></div>
-                            </div>
-                            <div>
-                                <div class="sensor-row"><span class="label">Speed</span><div class="sensor-data"><span class="value" id="gps-speed">--</span><span class="unit">km/h</span></div></div>
-                                <div class="sensor-row"><span class="label">Course</span><div class="sensor-data"><span class="value" id="gps-course">--</span><span class="unit">°</span></div></div>
-                                <div class="sensor-row"><span class="label">HDOP</span><div class="sensor-data"><span class="value" id="gps-hdop">--</span><span class="unit"></span></div></div>
-                                <div class="sensor-row"><span class="label">Time (UTC-3)</span><div class="sensor-data"><span class="value" style="font-size:0.8rem" id="gps-time">--</span><span class="unit"></span></div></div>
-                            </div>
-                        </div>
-                        <div style="border-top: 1px solid var(--header-border); margin-top: 16px; padding-top: 16px;">
-                            <h3 style="border: none; padding: 0; margin-bottom: 12px; font-size: 0.72rem; letter-spacing: 3px; border-left: none;">Compass (External Mag)</h3>
-                            <div class="dashboard-grid">
-                                <div>
-                                    <div class="sensor-row"><span class="label">Heading</span><div class="sensor-data"><span class="value" id="comp-heading">--</span><span class="unit">°</span></div></div>
-                                    <div class="sensor-row"><span class="label">Mag X</span><div class="sensor-data"><span class="value" id="comp-x">--</span><span class="unit"></span></div></div>
-                                </div>
-                                <div>
-                                    <div class="sensor-row"><span class="label">Mag Y</span><div class="sensor-data"><span class="value" id="comp-y">--</span><span class="unit"></span></div></div>
-                                    <div class="sensor-row"><span class="label">Mag Z</span><div class="sensor-data"><span class="value" id="comp-z">--</span><span class="unit"></span></div></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="dashboard-grid">
-                    <div class="card">
-                        <h3>Orientation</h3>
-                        <div class="sensor-row"><span class="label">Roll</span><div class="sensor-data"><span class="value" id="imu-roll">--</span><span class="unit">°</span></div></div>
-                        <div class="sensor-row"><span class="label">Pitch</span><div class="sensor-data"><span class="value" id="imu-pitch">--</span><span class="unit">°</span></div></div>
-                        <div class="sensor-row" style="margin-top:8px;"><span class="label">Temperature</span><div class="sensor-data"><span class="value" id="imu-temp">--</span><span class="unit">°C</span></div></div>
-                    </div>
-                    <div class="card">
-                        <h3>Accelerometer (g)</h3>
-                        <div class="sensor-row"><span class="label">X</span><div class="sensor-data"><span class="value" id="accel-x">--</span><span class="unit"></span></div></div>
-                        <div class="sensor-row"><span class="label">Y</span><div class="sensor-data"><span class="value" id="accel-y">--</span><span class="unit"></span></div></div>
-                        <div class="sensor-row"><span class="label">Z</span><div class="sensor-data"><span class="value" id="accel-z">--</span><span class="unit"></span></div></div>
-                    </div>
-                    <div class="card">
-                        <h3>Gyroscope (°/s)</h3>
-                        <div class="sensor-row"><span class="label">X</span><div class="sensor-data"><span class="value" id="gyro-x">--</span><span class="unit"></span></div></div>
-                        <div class="sensor-row"><span class="label">Y</span><div class="sensor-data"><span class="value" id="gyro-y">--</span><span class="unit"></span></div></div>
-                        <div class="sensor-row"><span class="label">Z</span><div class="sensor-data"><span class="value" id="gyro-z">--</span><span class="unit"></span></div></div>
-                    </div>
-                </div>
-
-            </div>
-
-            <div id="hud-tab" class="tab-content">
                 <div class="hud-frame">
                     <div class="hud-frame-bar">
                         <span>TACTICAL DISPLAY / UNIT: UGV ESP-TANK / LIVE FEED</span>
@@ -285,17 +187,25 @@
                             </div>
 
                             <div class="side-panel panel-top-right">
-                                <div class="panel-header">SAT-NAV</div>
+                                <div class="panel-header">SAT-NAV <span id="hud-gps-fix-badge" class="fix-badge">NO FIX</span></div>
                                 <div class="data-row"><span class="data-label">LAT</span><span class="data-value data-value-small" id="hud-gps-lat">--</span></div>
                                 <div class="data-row"><span class="data-label">LNG</span><span class="data-value data-value-small" id="hud-gps-lng">--</span></div>
-                                <div class="data-row"><span class="data-label">ALT</span><span class="data-value data-value-small" id="hud-gps-alt">--</span></div>
                                 <div class="accel-row">
-                                    <div class="accel-item"><span class="data-label">SATS</span><span class="data-value" id="hud-gps-sats" style="color: var(--primary);">0</span></div>
-                                    <div class="accel-item"><span class="data-label">HDOP</span><span class="data-value" id="hud-gps-hdop">--</span></div>
-                                    <div class="accel-item"><span class="data-label">CRS</span><span class="data-value" id="hud-gps-crs">--</span></div>
+                                    <div class="accel-item"><span class="data-label">ALT</span><span class="data-value" id="hud-gps-alt">--</span></div>
                                     <div class="accel-item"><span class="data-label">SPD</span><span class="data-value" id="hud-gps-spd">--</span></div>
+                                    <div class="accel-item"><span class="data-label">SAT</span><span class="data-value" id="hud-gps-sats" style="color: var(--primary);">0</span></div>
                                 </div>
-                                <div style="text-align: right; color: var(--primary-dim); font-size: 0.55rem; font-weight: bold; transition: color 0.2s;">TIME: <span id="hud-sys-time-local">--</span></div>
+                                <div class="minimap-wrap">
+                                    <canvas id="hud-minimap" width="148" height="110"></canvas>
+                                    <div class="minimap-zoom-ctrl">
+                                        <button id="minimap-zoom-in"  class="minimap-zoom-btn">+</button>
+                                        <button id="minimap-zoom-out" class="minimap-zoom-btn">&#x2212;</button>
+                                    </div>
+                                </div>
+                                <div class="minimap-footer">
+                                    <span><span style="color:var(--primary-dim);">CRS </span><span id="hud-gps-crs">--</span>°</span>
+                                    <span id="hud-sys-time-local" style="color:var(--primary-dim);">--:--:--</span>
+                                </div>
                             </div>
 
                             <div class="side-panel panel-left">
@@ -326,6 +236,97 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="radio" class="tab-content">
+                <div class="dashboard-grid" style="grid-template-columns: 1fr;">
+                    <div class="card">
+                        <h3>Receiver Channels</h3>
+                        <div id="all-channels">Loading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="sensors" class="tab-content">
+                <div id="imu-offline" class="card" style="display:none;">
+                    <p style="margin:0; color:var(--watermelon); font-weight:bold; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 2px;">!! IMU SENSOR OFFLINE / DATA INVALID</p>
+                </div>
+
+                <!-- GPS Card span 2 columns if space allows -->
+                <div class="dashboard-grid" style="margin-bottom: 20px;">
+                    <div class="card" style="grid-column: 1 / -1;">
+                        <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--header-border); padding-bottom: 12px; margin-bottom: 16px;">
+                            <h3 style="border: none; padding: 0; margin: 0; border-left: none; letter-spacing: 3px;">GPS Location</h3>
+                            <span id="gps-status" style="font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 0; background: rgba(204, 26, 40, 0.1); color: var(--watermelon); text-transform: uppercase; letter-spacing: 2px; font-family: 'JetBrains Mono', monospace; border: 1px solid var(--watermelon);">NO FIX</span>
+                        </div>
+                        <div class="dashboard-grid">
+                            <div>
+                                <div class="sensor-row"><span class="label">Latitude</span><div class="sensor-data"><span class="value" id="gps-lat">--</span><span class="unit">°</span></div></div>
+                                <div class="sensor-row"><span class="label">Longitude</span><div class="sensor-data"><span class="value" id="gps-lng">--</span><span class="unit">°</span></div></div>
+                                <div class="sensor-row"><span class="label">Altitude</span><div class="sensor-data"><span class="value" id="gps-alt">--</span><span class="unit">m</span></div></div>
+                                <div class="sensor-row"><span class="label">Satellites</span><div class="sensor-data"><span class="value" id="gps-sats">0</span><span class="unit"></span></div></div>
+                            </div>
+                            <div>
+                                <div class="sensor-row"><span class="label">Speed</span><div class="sensor-data"><span class="value" id="gps-speed">--</span><span class="unit">km/h</span></div></div>
+                                <div class="sensor-row"><span class="label">Course</span><div class="sensor-data"><span class="value" id="gps-course">--</span><span class="unit">°</span></div></div>
+                                <div class="sensor-row"><span class="label">HDOP</span><div class="sensor-data"><span class="value" id="gps-hdop">--</span><span class="unit"></span></div></div>
+                                <div class="sensor-row"><span class="label">Time (UTC-3)</span><div class="sensor-data"><span class="value" style="font-size:0.8rem" id="gps-time">--</span><span class="unit"></span></div></div>
+                            </div>
+                        </div>
+                        <div style="border-top: 1px solid var(--header-border); margin-top: 16px; padding-top: 16px;">
+                            <h3 style="border: none; padding: 0; margin-bottom: 12px; font-size: 0.72rem; letter-spacing: 3px; border-left: none;">Compass (External Mag)</h3>
+                            <div class="dashboard-grid">
+                                <div>
+                                    <div class="sensor-row"><span class="label">Heading</span><div class="sensor-data"><span class="value" id="comp-heading">--</span><span class="unit">°</span></div></div>
+                                    <div class="sensor-row"><span class="label">Mag X</span><div class="sensor-data"><span class="value" id="comp-x">--</span><span class="unit"></span></div></div>
+                                </div>
+                                <div>
+                                    <div class="sensor-row"><span class="label">Mag Y</span><div class="sensor-data"><span class="value" id="comp-y">--</span><span class="unit"></span></div></div>
+                                    <div class="sensor-row"><span class="label">Mag Z</span><div class="sensor-data"><span class="value" id="comp-z">--</span><span class="unit"></span></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h3>Orientation</h3>
+                        <div class="sensor-row"><span class="label">Roll</span><div class="sensor-data"><span class="value" id="imu-roll">--</span><span class="unit">°</span></div></div>
+                        <div class="sensor-row"><span class="label">Pitch</span><div class="sensor-data"><span class="value" id="imu-pitch">--</span><span class="unit">°</span></div></div>
+                        <div class="sensor-row" style="margin-top:8px;"><span class="label">Temperature</span><div class="sensor-data"><span class="value" id="imu-temp">--</span><span class="unit">°C</span></div></div>
+                    </div>
+                    <div class="card">
+                        <h3>Accelerometer (g)</h3>
+                        <div class="sensor-row"><span class="label">X</span><div class="sensor-data"><span class="value" id="accel-x">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-row"><span class="label">Y</span><div class="sensor-data"><span class="value" id="accel-y">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-row"><span class="label">Z</span><div class="sensor-data"><span class="value" id="accel-z">--</span><span class="unit"></span></div></div>
+                    </div>
+                    <div class="card">
+                        <h3>Gyroscope (°/s)</h3>
+                        <div class="sensor-row"><span class="label">X</span><div class="sensor-data"><span class="value" id="gyro-x">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-row"><span class="label">Y</span><div class="sensor-data"><span class="value" id="gyro-y">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-row"><span class="label">Z</span><div class="sensor-data"><span class="value" id="gyro-z">--</span><span class="unit"></span></div></div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div id="info" class="tab-content">
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <h3>System Info</h3>
+                        <ul id="sysinfo-list">
+                            <li>Loading...</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Network</h3>
+                        <ul id="netinfo-list">
+                            <li>Loading...</li>
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -396,6 +397,7 @@
             </div>
         </main>
     </div>
+    <input type="checkbox" id="armed-toggle" style="display:none;">
     <script src="script.js"></script>
 </body>
 </html>

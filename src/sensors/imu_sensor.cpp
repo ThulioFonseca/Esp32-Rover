@@ -38,6 +38,10 @@ bool ImuSensor::initialize(TwoWire* wireInstance) {
         return false;
     }
 
+    // Reset de hardware do chip (limpa qualquer estado corrompido após falha I2C)
+    writeRegister(REG_PWR_MGMT_1, 0x80); // bit 7 = DEVICE_RESET
+    delay(100); // aguarda o chip concluir o reset interno
+
     // Acorda o sensor (limpa SLEEP) e usa PLL do giroscópio como clock
     if (!writeRegister(REG_PWR_MGMT_1, 0x01)) return false;
     delay(100); // aguarda o PLL estabilizar
