@@ -21,7 +21,10 @@
                 <small class="fw-version">GROUND CONTROL STATION &bull; FW {{FW_VERSION}}</small>
             </div>
             <div class="header-controls">
-                <button class="armed-btn armed-false" id="armed-btn" onclick="toggleArmed()">DISARMED</button>
+                <button class="armed-btn armed-false" id="armed-btn" onclick="toggleArmed()" title="Toggle armed state">
+                    <span class="armed-dot"></span>
+                    <span class="armed-label" id="armed-toggle-label">DISARMED</span>
+                </button>
                 <div class="connection-status" id="connectionStatus">OFFLINE</div>
             </div>
         </header>
@@ -237,6 +240,9 @@
                         <div class="minimap-zoom-ctrl">
                             <button id="minimap-zoom-in"  class="minimap-zoom-btn">+</button>
                             <button id="minimap-zoom-out" class="minimap-zoom-btn">&#x2212;</button>
+                            <div class="minimap-divider"></div>
+                            <button class="minimap-zoom-btn minimap-layer-btn active" id="map-btn-map">MAP</button>
+                            <button class="minimap-zoom-btn minimap-layer-btn" id="map-btn-sat">SAT</button>
                         </div>
                     </div>
                 </div>
@@ -263,7 +269,7 @@
                     <div class="card" style="grid-column: 1 / -1;">
                         <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--header-border); padding-bottom: 12px; margin-bottom: 16px;">
                             <h3 style="border: none; padding: 0; margin: 0; border-left: none; letter-spacing: 3px;">GPS Location</h3>
-                            <span id="gps-status" style="font-size: 0.72rem; font-weight: bold; padding: 3px 8px; border-radius: 0; background: rgba(204, 26, 40, 0.1); color: var(--watermelon); text-transform: uppercase; letter-spacing: 2px; font-family: 'JetBrains Mono', monospace; border: 1px solid var(--watermelon);">NO FIX</span>
+                            <span id="gps-status" class="fix-badge">NO FIX</span>
                         </div>
                         <div class="dashboard-grid">
                             <div>

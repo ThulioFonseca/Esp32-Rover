@@ -64,6 +64,7 @@ let minimapTiles     = {};  // {"z/x/y": HTMLImageElement} — 3×3 grid cache
 let minimapGridKey   = '';  // "theme/z/cx/cy" — center tile of current grid
 let minimapLastValid = false;
 let minimapZoomDelta = 0;   // user zoom offset: -3 to +3
+let minimapSatMode   = false;
 
 function latLngToTileXY(lat, lng, z) {
     const n = Math.pow(2, z);
@@ -78,6 +79,10 @@ function mercX(lng) { return (lng + 180) / 360; }
 function mercY(lat) { return 0.5 - Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) / (2 * Math.PI); }
 
 function getTileUrl(z, x, y) {
+    if (minimapSatMode) {
+        // Esri World Imagery — tile path uses z/y/x (not z/x/y)
+        return 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/' + z + '/' + y + '/' + x;
+    }
     var dark = document.body.getAttribute('data-theme') === 'dark';
     var s = 'abcd'[Math.floor(Math.random() * 4)];
     var style = dark ? 'voyager' : 'light_all';
@@ -381,10 +386,12 @@ function startRenderLoop() {
             }
 
             // Armed status sync (leve, independe de aba)
-            const at = DOM.armedToggle;
-            if (at && at.checked !== frame._armed) {
-                at.checked = frame._armed;
-                updateArmedStyle(frame._armed);
+            if (Date.now() > _armedLockUntil) {
+                const at = DOM.armedToggle;
+                if (at && at.checked !== frame._armed) {
+                    at.checked = frame._armed;
+                    updateArmedStyle(frame._armed);
+                }
             }
 
             // Uptime na Info
@@ -635,9 +642,8 @@ function updateSensorsFromData(d) {
         const gpsStatus = DOM.gpsStatus;
         if (d.gps.valid) {
             if(gpsStatus) {
-                gpsStatus.innerText = '3D FIX';
-                gpsStatus.style.background = 'var(--accent-bg-glow)';
-                gpsStatus.style.color = 'var(--accent-color)';
+                gpsStatus.className = 'fix-badge fix-ok';
+                gpsStatus.textContent = '3D FIX';
             }
             if(DOM.gpsLat)    DOM.gpsLat.innerText    = d.gps.lat.toFixed(6);
             if(DOM.gpsLng)    DOM.gpsLng.innerText    = d.gps.lng.toFixed(6);
@@ -651,9 +657,8 @@ function updateSensorsFromData(d) {
             }
         } else {
             if(gpsStatus) {
-                gpsStatus.innerText = 'NO FIX';
-                gpsStatus.style.background = 'rgba(228, 37, 72, 0.1)';
-                gpsStatus.style.color = 'var(--watermelon)';
+                gpsStatus.className = 'fix-badge';
+                gpsStatus.textContent = 'NO FIX';
             }
             if(DOM.gpsLat)    DOM.gpsLat.innerText    = '--';
             if(DOM.gpsLng)    DOM.gpsLng.innerText    = '--';
@@ -896,10 +901,13 @@ function clearSystemLogs() {
         .catch(function() {});
 }
 
+var _armedLockUntil = 0;
+
 function toggleArmed() {
     const toggle = document.getElementById('armed-toggle');
     toggle.checked = !toggle.checked;
     const enabled = toggle.checked;
+    _armedLockUntil = Date.now() + 1000;
     updateArmedStyle(enabled);
     fetch('/api/settings', {
         method: 'POST',
@@ -911,16 +919,9 @@ function toggleArmed() {
 function updateArmedStyle(isArmed) {
     const btn = document.getElementById('armed-btn');
     if (!btn) return;
-
-    if (isArmed) {
-        btn.classList.remove('armed-false');
-        btn.classList.add('armed-true');
-        btn.innerText = 'ARMED';
-    } else {
-        btn.classList.remove('armed-true');
-        btn.classList.add('armed-false');
-        btn.innerText = 'DISARMED';
-    }
+    btn.className = 'armed-btn ' + (isArmed ? 'armed-true' : 'armed-false');
+    const label = document.getElementById('armed-toggle-label');
+    if (label) label.textContent = isArmed ? 'ARMED' : 'DISARMED';
 }
 
 function formatBytes(bytes) {
@@ -1224,6 +1225,10 @@ document.addEventListener('DOMContentLoaded', function() {
     var zmOut = document.getElementById('minimap-zoom-out');
     if (zmIn)  zmIn.onclick  = function() { if (minimapZoomDelta < 3)  { minimapZoomDelta++; minimapTiles = {}; minimapGridKey = ''; } };
     if (zmOut) zmOut.onclick = function() { if (minimapZoomDelta > -3) { minimapZoomDelta--; minimapTiles = {}; minimapGridKey = ''; } };
+    var btnMap = document.getElementById('map-btn-map');
+    var btnSat = document.getElementById('map-btn-sat');
+    if (btnMap) btnMap.onclick = function() { if (minimapSatMode) { minimapSatMode = false; btnMap.classList.add('active'); btnSat.classList.remove('active'); minimapTiles = {}; minimapGridKey = ''; } };
+    if (btnSat) btnSat.onclick = function() { if (!minimapSatMode) { minimapSatMode = true; btnSat.classList.add('active'); btnMap.classList.remove('active'); minimapTiles = {}; minimapGridKey = ''; } };
 
     // HUD SVG animated elements (populados aqui; compassTape pode ser null até initHUD)
     DOM.horizonGroup = document.getElementById('horizon-group');

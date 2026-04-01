@@ -541,34 +541,64 @@ input:checked + .slider:before {
 
 /* ─── ARMED STATUS BUTTON (header) ───────────────────────────────────────────── */
 
+@keyframes armed-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.35; }
+}
+
 .armed-btn {
-    padding: 6px 14px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 118px;
+    padding: 5px 12px 5px 10px;
+    background: transparent;
+    border: 1px solid var(--header-border);
     border-radius: 0;
     font-family: 'JetBrains Mono', 'Courier New', monospace;
     font-size: 0.7rem;
     font-weight: 600;
     letter-spacing: 2px;
     text-transform: uppercase;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.armed-btn.armed-false {
-    background-color: var(--accent-bg-glow);
     color: var(--text-muted);
-    border: 1px solid var(--header-border);
-    box-shadow: none;
+    cursor: pointer;
+    transition: border-color 0.25s, color 0.25s, box-shadow 0.25s;
+    user-select: none;
 }
-.armed-btn.armed-false:hover {
+.armed-btn:hover {
     border-color: var(--accent-color);
     color: var(--accent-color);
 }
+.armed-btn:hover .armed-dot {
+    background: var(--accent-color);
+}
 
+.armed-dot {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    background: var(--text-muted);
+    transition: background 0.25s;
+}
+
+.armed-label {
+    display: inline-block;
+    min-width: 72px;
+}
+
+/* ARMED state */
 .armed-btn.armed-true {
-    background-color: rgba(var(--watermelon-rgb), 0.1);
+    border-color: var(--watermelon);
     color: var(--watermelon);
-    border: 1px solid var(--watermelon);
-    box-shadow: 0 0 10px rgba(var(--watermelon-rgb), 0.2);
+    box-shadow: 0 0 8px rgba(var(--watermelon-rgb), 0.25);
+}
+.armed-btn.armed-true .armed-dot {
+    background: var(--watermelon);
+    animation: armed-pulse 1.2s ease-in-out infinite;
+}
+.armed-btn.armed-true:hover {
+    border-color: var(--watermelon);
+    color: var(--watermelon);
 }
 
 /* ─── SENSOR ROWS ─────────────────────────────────────────────────────────────── */
@@ -986,7 +1016,8 @@ input:checked + .slider:before {
     .card { padding: 16px; }
     .dashboard-grid { gap: 14px; }
 
-    .armed-btn { font-size: 0.62rem; padding: 5px 10px; letter-spacing: 1px; }
+    .armed-btn { font-size: 0.62rem; padding: 4px 10px 4px 8px; letter-spacing: 1px; min-width: 100px; }
+    .armed-label { min-width: 60px; }
 
     li span.label, .sensor-row .label { font-size: 0.8rem; }
     li span.value, .sensor-row .value { font-size: 0.88rem; }
@@ -1238,6 +1269,38 @@ input:checked + .slider:before {
     transition: all 0.4s ease;
 }
 
+.map-layer-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--border-color);
+    border-radius: 3px;
+    padding: 2px;
+}
+
+.map-layer-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    padding: 2px 7px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.map-layer-btn.active {
+    background: var(--accent-color);
+    color: #fff;
+}
+
+.map-layer-btn:not(.active):hover {
+    background: var(--card-bg);
+    color: var(--text-primary);
+}
+
 .map-viewport {
     flex: 1;
     min-height: 0;
@@ -1285,6 +1348,29 @@ input:checked + .slider:before {
 
 .minimap-zoom-btn:hover {
     background: rgba(var(--accent-rgb), 0.12);
+    border-color: var(--accent-color);
+}
+
+.minimap-divider {
+    width: 100%;
+    height: 1px;
+    background: var(--card-border);
+    margin: 2px 0;
+}
+
+.minimap-layer-btn {
+    font-size: 0.55rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    letter-spacing: 0;
+}
+.minimap-layer-btn.active {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    color: #fff;
+}
+.minimap-layer-btn.active:hover {
+    background: var(--accent-color);
     border-color: var(--accent-color);
 }
 
