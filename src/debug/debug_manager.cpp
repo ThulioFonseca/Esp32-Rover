@@ -82,6 +82,26 @@ String DebugManager::getLogs() {
   return output;
 }
 
+size_t DebugManager::writeLogsToBuffer(char* buf, size_t bufSize) {
+  if (serialMutex == NULL || buf == NULL || bufSize == 0) return 0;
+
+  size_t written = 0;
+  if (xSemaphoreTake(serialMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+    int current = logTail;
+    for (int i = 0; i < logCount; i++) {
+      int n = snprintf(buf + written, bufSize - written, "%s\n", logBuffer[current]);
+      if (n > 0 && (size_t)n < bufSize - written) {
+        written += n;
+      } else {
+        break; // buffer cheio
+      }
+      current = (current + 1) % MAX_LOG_LINES;
+    }
+    xSemaphoreGive(serialMutex);
+  }
+  return written;
+}
+
 void DebugManager::clearLogs() {
   if (serialMutex != NULL && xSemaphoreTake(serialMutex, 0) == pdTRUE) {
     logHead = 0;

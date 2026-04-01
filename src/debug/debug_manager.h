@@ -29,15 +29,19 @@ public:
 
   // Sistema de Log em RAM (Buffer Circular com char fixo — sem fragmentação heap)
   String getLogs();
+  // Versão sem alocação heap: escreve os logs diretamente em um buffer caller-fornecido.
+  // Retorna o número de bytes escritos (sem contar o '\0').
+  size_t writeLogsToBuffer(char* buf, size_t bufSize);
   void clearLogs();
+
+  static const int MAX_LOG_LINES   = 30;
+  static const int MAX_LOG_LINE_LEN = 128; // tamanho máximo por linha de log
 
 private:
   float _prevNThrottle;
   float _prevNSteering;
   static constexpr float CTRL_LOG_THRESHOLD = 0.05f; // 5% de mudança para gerar log
 
-  static const int MAX_LOG_LINES = 30;
-  static const int MAX_LOG_LINE_LEN = 128; // tamanho máximo por linha de log
   char logBuffer[MAX_LOG_LINES][MAX_LOG_LINE_LEN];
   int logHead;
   int logTail;

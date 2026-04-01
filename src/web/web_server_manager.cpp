@@ -31,11 +31,23 @@ WebServerManager::WebServerManager(const char* ssid, const char* password)
 bool WebServerManager::begin() {
     if (Config::WIFI_MODE == 1 && Config::STA_SSID.length() > 0) {
         tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Tentando conectar à rede Wi-Fi (Modo Station)... SSID: %s", Config::STA_SSID.c_str());
-        
+
+        WiFi.persistent(false);       // evita desgaste de flash por gravações NVS automáticas
+        WiFi.setAutoReconnect(true);  // reconecta automaticamente se o AP cair
         WiFi.mode(WIFI_STA);
         WiFi.setSleep(false); // desativa modem sleep — elimina latência de TX por janela DTIM
+
+        // Log ao reconectar ou ao perder conexão
+        WiFi.onEvent([](WiFiEvent_t event, WiFiEventInfo_t info) {
+            if (event == ARDUINO_EVENT_WIFI_STA_GOT_IP) {
+                ets_printf("[WiFi] Reconectado — IP: %s\n", WiFi.localIP().toString().c_str());
+            } else if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+                ets_printf("[WiFi] Desconectado — tentando reconexão automática...\n");
+            }
+        });
+
         WiFi.begin(Config::STA_SSID.c_str(), Config::STA_PASS.c_str());
-        
+
         // Aguarda conexão por até 10 segundos
         int attempts = 0;
         while (WiFi.status() != WL_CONNECTED && attempts < 20) {
@@ -194,9 +206,15 @@ void WebServerManager::setupRoutes() {
     });
 
     // Logs API - Serve o buffer circular de logs em texto puro
+    // Usa AsyncResponseStream para evitar alocação de String (~3.8KB) no heap.
     server.on("/api/logs", HTTP_GET, [](AsyncWebServerRequest *request){
-        String logs = tankController.getSystemLogs();
-        request->send(200, "text/plain", logs);
+        static char logsBuf[DebugManager::MAX_LOG_LINES * (DebugManager::MAX_LOG_LINE_LEN + 1) + 1];
+        size_t len = tankController.debugManager.writeLogsToBuffer(logsBuf, sizeof(logsBuf));
+        if (len == 0) {
+            request->send(200, "text/plain", "Sem logs no momento.\n");
+        } else {
+            request->send(200, "text/plain", logsBuf);
+        }
     });
 
     // Limpar logs
@@ -345,8 +363,10 @@ void WebServerManager::setupRoutes() {
             }
             pendingConfig.wifiChange = true;
             pendingConfig.wifiMode   = reqMode;
-            pendingConfig.wifiSSID   = reqSSID;
-            pendingConfig.wifiPass   = reqPass;
+            strncpy(pendingConfig.wifiSSID, reqSSID.c_str(), sizeof(pendingConfig.wifiSSID) - 1);
+            pendingConfig.wifiSSID[sizeof(pendingConfig.wifiSSID) - 1] = '\0';
+            strncpy(pendingConfig.wifiPass, reqPass.c_str(), sizeof(pendingConfig.wifiPass) - 1);
+            pendingConfig.wifiPass[sizeof(pendingConfig.wifiPass) - 1] = '\0';
             requiresReboot = true;
         }
 

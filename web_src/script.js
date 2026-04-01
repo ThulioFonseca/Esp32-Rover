@@ -683,7 +683,7 @@ function updateRadioFromData(d) {
             d.raw_channels.map(function(val, i) {
                 return '<div class="channel-group"><label>CH ' + (i+1) + '</label>' +
                     '<div class="channel-row"><div class="progress-bar"><div id="ch-' + i + '" class="fill" style="width:50%"></div></div>' +
-                    '<span class="val" id="val-' + i + '">' + val + '</span></div></div>';
+                    '<span class="val" id="val-' + i + '">' + parseInt(val) + '</span></div></div>';
             }).join('') + '</div>';
 
         DOM.channels = d.raw_channels.map(function(_, i) { return {
@@ -704,8 +704,16 @@ function updateRadioFromData(d) {
 
 // ─── Funções HTTP (baixa frequência — sysinfo, settings, logs) ───────────────
 
+// Wrapper com timeout de 5s para todos os fetch() — evita hang indefinido se o ESP32 não responder.
+function fetchWithTimeout(url, options) {
+    var controller = new AbortController();
+    var timer = setTimeout(function() { controller.abort(); }, 5000);
+    var opts = Object.assign({}, options || {}, { signal: controller.signal });
+    return fetch(url, opts).finally(function() { clearTimeout(timer); });
+}
+
 function updateSysInfo() {
-    fetch('/api/sysinfo')
+    fetchWithTimeout('/api/sysinfo')
         .then(function(response) { return response.json(); })
         .then(function(data) {
             const list = document.getElementById('sysinfo-list');
@@ -737,7 +745,7 @@ function updateSysInfo() {
 }
 
 function loadSettings() {
-    fetch('/api/settings')
+    fetchWithTimeout('/api/settings')
     .then(function(r) { return r.json(); })
     .then(function(d) {
         const themeToggle = document.getElementById('theme-toggle');
@@ -766,6 +774,17 @@ function loadSettings() {
             toggleWifiFields();
         }
         if(staSsid && d.sta_ssid) staSsid.value = d.sta_ssid;
+
+        // Carrega Google Fonts apenas em modo STA (internet disponível).
+        // Em modo AP o rover não tem acesso externo, usamos as fontes de fallback do CSS.
+        if (d.wifi_mode === 1 && !document.querySelector('link[href*="fonts.googleapis.com"]')) {
+            var pc1 = document.createElement('link'); pc1.rel = 'preconnect'; pc1.href = 'https://fonts.googleapis.com';
+            var pc2 = document.createElement('link'); pc2.rel = 'preconnect'; pc2.href = 'https://fonts.gstatic.com'; pc2.crossOrigin = 'anonymous';
+            var fl  = document.createElement('link'); fl.rel  = 'stylesheet'; fl.href = 'https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap';
+            document.head.appendChild(pc1);
+            document.head.appendChild(pc2);
+            document.head.appendChild(fl);
+        }
     })
     .catch(function() {});
 }
@@ -796,7 +815,7 @@ function saveNetworkSettings() {
         if (pass) payload.sta_pass = pass;
     }
 
-    fetch('/api/settings', {
+    fetchWithTimeout('/api/settings', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(payload)
@@ -822,7 +841,7 @@ function toggleTheme() {
     } else {
         document.body.removeAttribute('data-theme');
     }
-    fetch('/api/settings', {
+    fetchWithTimeout('/api/settings', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({dark_theme: enabled})
@@ -831,7 +850,7 @@ function toggleTheme() {
 
 function toggleDebug() {
     const enabled = document.getElementById('debug-toggle').checked;
-    fetch('/api/settings', {
+    fetchWithTimeout('/api/settings', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({debug: enabled})
@@ -840,7 +859,7 @@ function toggleDebug() {
 
 function rebootSystem() {
     if (!confirm('Reboot the rover to save settings?')) return;
-    fetch('/api/reboot', { method: 'POST' })
+    fetchWithTimeout('/api/reboot', { method: 'POST' })
         .then(function(r) { return r.json(); })
         .then(function(d) {
             if (d.status === 'rebooting') {
@@ -859,7 +878,7 @@ function updateLogs() {
     const autoRefresh = document.getElementById('auto-refresh-logs');
     if (autoRefresh && !autoRefresh.checked) return;
 
-    fetch('/api/logs')
+    fetchWithTimeout('/api/logs')
         .then(function(r) { return r.text(); })
         .then(function(text) {
             if (text.trim() === '') return;
@@ -894,7 +913,7 @@ function updateLogs() {
 }
 
 function clearSystemLogs() {
-    fetch('/api/clear-logs', { method: 'POST' })
+    fetchWithTimeout('/api/clear-logs', { method: 'POST' })
         .then(function() {
             document.getElementById('log-console').innerHTML = '<div style="color: #6a9955">Console limpo.</div>';
         })
@@ -909,7 +928,7 @@ function toggleArmed() {
     const enabled = toggle.checked;
     _armedLockUntil = Date.now() + 1000;
     updateArmedStyle(enabled);
-    fetch('/api/settings', {
+    fetchWithTimeout('/api/settings', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({armed: enabled})
@@ -1280,6 +1299,8 @@ window.addEventListener('beforeunload', function() {
         cancelAnimationFrame(rafId);
         rafId = null;
     }
+    if (sysinfoPollingInterval) { clearInterval(sysinfoPollingInterval); sysinfoPollingInterval = null; }
+    if (logsPollingInterval)    { clearInterval(logsPollingInterval);    logsPollingInterval    = null; }
     if (ws) ws.close();
 });
 

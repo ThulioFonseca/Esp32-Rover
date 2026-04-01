@@ -25,7 +25,6 @@ public:
   
 private:
   void updateChannelData();
-  void resetChannelData();
 };
 
 #endif

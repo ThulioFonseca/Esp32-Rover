@@ -21,6 +21,7 @@
 #include "config/pins.h"
 #include "utils/status_led_manager.h"
 #include <cstring>
+#include "esp_task_wdt.h"
 
 // Struct em memória RTC (sobrevive soft reset via ESP.restart(), mas não power cycle).
 // Permite passar configurações pendentes para o próximo boot, onde o NVS será gravado
@@ -48,17 +49,29 @@ volatile bool pendingNvsSave = false;  // true = há configurações não persis
 
 // Executa o loop de controle a 50 Hz usando vTaskDelayUntil para periodicidade determinística.
 void tankControlTask(void* pvParameters) {
+    esp_task_wdt_add(NULL); // Registra esta task no hardware watchdog (10s timeout)
+
     TickType_t xLastWakeTime = xTaskGetTickCount();
     const TickType_t xFrequency = pdMS_TO_TICKS(Config::CONTROL_INTERVAL_MS);
+    uint32_t watermarkTick = 0;
 
     while (true) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
+        esp_task_wdt_reset(); // Alimenta o watchdog — se parar, sistema reinicia em 10s
 
         statusLed.update();
 
         if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(Config::TANK_MUTEX_TIMEOUT_MS)) == pdTRUE) {
             tankController.update();
             xSemaphoreGive(tankMutex);
+        }
+
+        // Log de watermark de stack a cada ~30s para detectar overflow silencioso
+        if (++watermarkTick >= 1500) {
+            watermarkTick = 0;
+            UBaseType_t wm = uxTaskGetStackHighWaterMark(NULL);
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO,
+                "[WDT] TankControlTask stack min livre: %u words", wm);
         }
     }
 }
@@ -122,32 +135,26 @@ void setup() {
     // 1. Criar primitivas de sincronização antes de iniciar o web server.
     tankMutex = xSemaphoreCreateMutex();
     if (tankMutex == NULL) {
-        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha ao criar tankMutex — sistema travado");
+        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha ao criar tankMutex — reiniciando");
         statusLed.setStatus(LED_STATUS_ERROR);
-        while (true) {
-            statusLed.update();
-            delay(10);
-        }
+        delay(300);
+        ESP.restart();
     }
 
     // 2. Wi-Fi e Web Server — pode escrever em Flash/NVS; deve ocorrer antes das interrupts.
     if (!webServer.begin()) {
-        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha ao iniciar Web Server");
+        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha ao iniciar Web Server — reiniciando");
         statusLed.setStatus(LED_STATUS_ERROR);
-        while (true) { 
-            statusLed.update();
-            delay(10); 
-        }
+        delay(300);
+        ESP.restart();
     }
 
     // 3. TankController — habilita interrupts de hardware (Servos + Serial iBUS).
     if (!tankController.initialize()) {
-        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha crítica no TankController — sistema travado");
+        tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Falha crítica no TankController — reiniciando");
         statusLed.setStatus(LED_STATUS_ERROR);
-        while (true) { 
-            statusLed.update();
-            delay(10); 
-        }
+        delay(300);
+        ESP.restart();
     }
 
     // Se no WebServerManager caiu em fallback pro AP Mode, mantém como Warning
@@ -183,8 +190,8 @@ void loop() {
             if (pendingConfig.wifiChange) {
                 pendingConfig.wifiChange = false;
                 Config::WIFI_MODE = pendingConfig.wifiMode;
-                Config::STA_SSID  = pendingConfig.wifiSSID;
-                Config::STA_PASS  = pendingConfig.wifiPass;
+                Config::STA_SSID  = String(pendingConfig.wifiSSID);
+                Config::STA_PASS  = String(pendingConfig.wifiPass);
             }
             pendingNvsSave = true;
         }
@@ -221,8 +228,8 @@ void loop() {
         if (pendingConfig.wifiChange) {
             pendingConfig.wifiChange = false;
             Config::WIFI_MODE = pendingConfig.wifiMode;
-            Config::STA_SSID  = pendingConfig.wifiSSID;
-            Config::STA_PASS  = pendingConfig.wifiPass;
+            Config::STA_SSID  = String(pendingConfig.wifiSSID);
+            Config::STA_PASS  = String(pendingConfig.wifiPass);
         }
 
         pendingNvsSave = true;

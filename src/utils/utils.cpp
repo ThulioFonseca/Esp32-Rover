@@ -39,7 +39,7 @@ float normalizeStick(int pulse) {
  * Negativo → [PWM_MIN, ESC_DEAD_LOW-1]
  */
 int denormalizeToEsc(float norm) {
-    if (abs(norm) < 1e-6f) return Config::ESC_NEUTRAL;
+    if (fabsf(norm) < 1e-6f) return Config::ESC_NEUTRAL;
 
     if (norm > 0.0f) {
         int outMin = Config::ESC_DEAD_HIGH + 1;

@@ -17,8 +17,8 @@ struct PendingConfig {
   volatile bool systemArmed;
   volatile bool wifiChange = false;
   uint8_t wifiMode;
-  String wifiSSID;
-  String wifiPass;
+  char wifiSSID[33];  // max 32-char SSID + null — char[] avoids heap-allocated String across tasks
+  char wifiPass[65];  // max 64-char passphrase + null
 };
 
 class TankController {
@@ -50,8 +50,10 @@ private:
 
   template<typename T>
   T snapshotUnderMutex(const T& src) const {
-      T copy = src; // fallback com último valor conhecido caso o mutex esteja ocupado
-      if (sensorMutex != NULL && xSemaphoreTake(sensorMutex, 0) == pdTRUE) {
+      T copy{};
+      // 2ms timeout: sensorMutex is held only for a struct copy (microseconds),
+      // so this effectively never waits while still being race-free.
+      if (sensorMutex != NULL && xSemaphoreTake(sensorMutex, pdMS_TO_TICKS(2)) == pdTRUE) {
           copy = src;
           xSemaphoreGive(sensorMutex);
       }

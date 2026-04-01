@@ -39,7 +39,7 @@ bool TankController::initialize() {
     // Barramento I2C único compartilhado — IMU, Compass e sensores futuros
     debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando I2C SDA=%d SCL=%d @ %lu Hz", Pins::SDA, Pins::SCL, Config::I2C_FREQ_HZ);
     Wire.begin(Pins::SDA, Pins::SCL, Config::I2C_FREQ_HZ);
-    Wire.setTimeOut(50); // 50ms limite por transação I2C
+    Wire.setTimeOut(Config::I2C_NORMAL_TIMEOUT_MS);
 
     // Sensores são opcionais — falha na inicialização não trava o boot.
     if (Config::IMU_ENABLED) {
@@ -87,6 +87,27 @@ void TankController::update() {
         case Types::TIMEOUT: handleTimeout();              break;
         case Types::ERROR:   motorController.setNeutral(); break;
         default:                                           break;
+    }
+
+    // Heartbeat de debug a cada 2s — confirma que debug está ativo independente do estado.
+    // Útil quando não há sinal RC (TIMEOUT) ou sticks não se movem (sem printControlState).
+    if (debugManager.isDebugEnabled()) {
+        static unsigned long lastHeartbeat = 0;
+        unsigned long now = millis();
+        if (now - lastHeartbeat >= 2000) {
+            lastHeartbeat = now;
+            const char* stateStr;
+            switch (currentState) {
+                case Types::INITIALIZING: stateStr = "INIT";    break;
+                case Types::ARMING:       stateStr = "ARMING";  break;
+                case Types::ARMED:        stateStr = "ARMED";   break;
+                case Types::TIMEOUT:      stateStr = "TIMEOUT"; break;
+                case Types::ERROR:        stateStr = "ERROR";   break;
+                default:                  stateStr = "?";       break;
+            }
+            debugManager.logf(DebugManager::LOG_LEVEL_DEBUG,
+                "[HB] %s | armed:%d | heap:%u", stateStr, systemArmed, ESP.getFreeHeap());
+        }
     }
 }
 
@@ -165,7 +186,7 @@ void TankController::recoverI2CBus() {
 
     // 1. Para o driver Wire
     Wire.end();
-    delay(5);
+    vTaskDelay(pdMS_TO_TICKS(5));
 
     // 2. Remove SDA e SCL da GPIO matrix do ESP32.
     //    Wire.end() para o driver mas NÃO libera os pinos do controle do periférico
@@ -202,11 +223,11 @@ void TankController::recoverI2CBus() {
             "SDA HIGH após gpio_reset — barramento pode estar livre, reinit Wire");
     }
 
-    delay(5); // settling após STOP antes de reinicializar Wire
+    vTaskDelay(pdMS_TO_TICKS(5)); // settling após STOP antes de reinicializar Wire
 
     // 4. Reinicializa o periférico I2C
     Wire.begin(Pins::SDA, Pins::SCL, Config::I2C_FREQ_HZ);
-    Wire.setTimeOut(20);
+    Wire.setTimeOut(Config::I2C_RECOVERY_TIMEOUT_MS);
 
     // 5. Reinicializa sensores e verifica resultado
     bool imuOk     = !Config::IMU_ENABLED || imuSensor.initialize(&Wire);
@@ -230,7 +251,7 @@ void TankController::recoverI2CBus() {
     if (recoveryAttempts >= 3) {
         debugManager.logf(DebugManager::LOG_LEVEL_ERROR,
             "Barramento I2C irrecuperável após %d tentativas — ESP.restart()", recoveryAttempts);
-        delay(200);
+        vTaskDelay(pdMS_TO_TICKS(200));
         ESP.restart();
     }
 }
