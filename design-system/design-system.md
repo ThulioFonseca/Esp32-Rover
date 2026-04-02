@@ -82,6 +82,21 @@ The system is **fully token-based** via CSS Custom Properties. All colors, spaci
 | `--glow` | `0 0 5px #00e87a, 0 0 12px rgba(0, 232, 122, 0.35)` | Phosphor glow shadow |
 | `--fpv-aberration` | `0.6px 0px 0px rgba(255,0,0,0.3), -0.6px 0px 0px rgba(0,255,255,0.3), ...` | CRT chromatic aberration text-shadow |
 
+#### Chart Series Palette (Sensors Tab — multi-variable line charts)
+
+6 tokens (`--chart-color-1` … `--chart-color-6`) defined in `:root` and `[data-theme="dark"]`. Colors 1–4 reuse semantic tokens; 5–6 are dedicated chart additions.
+
+| Token | Light (Field Command) | Dark (Phantom Ops) |
+|-------|-----------------------|--------------------|
+| `--chart-color-1` | `#0055aa` — sapphire blue | `#00b8e6` — cyan |
+| `--chart-color-2` | `#c41828` — watermelon red | `#ff2040` — bright red |
+| `--chart-color-3` | `#c87800` — amber | `#00ff9d` — neon green |
+| `--chart-color-4` | `#b06000` — dark amber | `#ffb300` — amber |
+| `--chart-color-5` | `#1a7a4a` — military green (**new**) | `#c084fc` — neon purple (**new**) |
+| `--chart-color-6` | `#6b21a8` — deep purple (**new**) | `#fb923c` — neon orange (**new**) |
+
+RGB companion vars (`--chart-color-5-rgb`, `--chart-color-6-rgb`) are provided for `rgba()` usage. The existing `--accent-rgb`, `--watermelon-rgb`, and `--sapphire` cover colors 1–4.
+
 #### Hardcoded Colors (outside token system)
 
 | Value | Location | Usage |

@@ -41,6 +41,16 @@
     /* JS variable aliases (used in handleWsAck) */
     --black: var(--base-bg);
     --neon-chartreuse: var(--accent-color);
+
+    /* Chart series palette — multi-variable sensor line charts */
+    --chart-color-1: #0055aa;
+    --chart-color-2: #c41828;
+    --chart-color-3: #c87800;
+    --chart-color-4: #b06000;
+    --chart-color-5: #1a7a4a;
+    --chart-color-6: #6b21a8;
+    --chart-color-5-rgb: 26, 122, 74;
+    --chart-color-6-rgb: 107, 33, 168;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -76,6 +86,16 @@
 
     --black: var(--base-bg);
     --neon-chartreuse: var(--accent-color);
+
+    /* Chart series palette — multi-variable sensor line charts */
+    --chart-color-1: #00b8e6;
+    --chart-color-2: #ff2040;
+    --chart-color-3: #00ff9d;
+    --chart-color-4: #ffb300;
+    --chart-color-5: #c084fc;
+    --chart-color-6: #fb923c;
+    --chart-color-5-rgb: 192, 132, 252;
+    --chart-color-6-rgb: 251, 146, 60;
 }
 
 /* ─── GLOBAL RESET ────────────────────────────────────────────────────────────── */
@@ -653,6 +673,99 @@ input:checked + .slider:before {
     padding: 14px 18px;
     margin-bottom: 20px;
     transition: all 0.4s ease;
+}
+
+/* ─── SENSOR CHART COMPONENTS ────────────────────────────────────────────────── */
+
+/* Card header — title + chart toggle button side by side */
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+.card-header h3 {
+    margin-bottom: 0;
+}
+
+/* Chart toggle button */
+.btn-chart-toggle {
+    font-family: 'Rajdhani', 'Arial Narrow', Arial, sans-serif;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border: 1px solid var(--card-border);
+    background: transparent;
+    color: var(--text-muted);
+    border-radius: 0;
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.btn-chart-toggle:hover,
+.btn-chart-toggle[aria-pressed="true"] {
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+    background: var(--accent-bg-glow);
+}
+
+/* Chart container — revealed on toggle */
+.sensor-chart-container {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--list-border);
+    transition: border-color 0.4s ease;
+}
+
+/* Canvas */
+.sensor-chart {
+    width: 100%;
+    height: 120px;
+    display: block;
+}
+
+/* Legend */
+.chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin-top: 8px;
+}
+
+.chart-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: 'Rajdhani', 'Arial Narrow', Arial, sans-serif;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s ease, opacity 0.2s ease;
+}
+.chart-legend-item::before {
+    content: '';
+    display: inline-block;
+    width: 10px;
+    height: 3px;
+    background: var(--swatch);
+    flex-shrink: 0;
+    transition: background 0.2s ease;
+}
+.chart-legend-item:hover {
+    color: var(--text-main);
+}
+.chart-legend-item.inactive {
+    opacity: 0.35;
+}
+.chart-legend-item.inactive::before {
+    background: var(--iron-grey);
 }
 
 /* ─── CONFIG / LOGS ───────────────────────────────────────────────────────────── */

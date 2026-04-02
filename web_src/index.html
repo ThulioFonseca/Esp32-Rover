@@ -268,7 +268,10 @@
                     <div class="card" style="grid-column: 1 / -1;">
                         <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--header-border); padding-bottom: 12px; margin-bottom: 16px;">
                             <h3 style="border: none; padding: 0; margin: 0; border-left: none; letter-spacing: 3px;">GPS Location</h3>
-                            <span id="gps-status" class="fix-badge">NO FIX</span>
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                <button class="btn-chart-toggle" id="chart-toggle-gps" aria-pressed="false">CHART</button>
+                                <span id="gps-status" class="fix-badge">NO FIX</span>
+                            </div>
                         </div>
                         <div class="dashboard-grid">
                             <div>
@@ -284,8 +287,21 @@
                                 <div class="sensor-row"><span class="label">Time (UTC-3)</span><div class="sensor-data"><span class="value" style="font-size:0.8rem" id="gps-time">--</span><span class="unit"></span></div></div>
                             </div>
                         </div>
+                        <div class="sensor-chart-container" id="chart-gps" hidden>
+                            <canvas class="sensor-chart" id="canvas-gps"></canvas>
+                            <div class="chart-legend" id="legend-gps">
+                                <span class="chart-legend-item" data-series="0" style="--swatch: var(--chart-color-1)">Alt</span>
+                                <span class="chart-legend-item" data-series="1" style="--swatch: var(--chart-color-2)">Speed</span>
+                                <span class="chart-legend-item" data-series="2" style="--swatch: var(--chart-color-3)">Course</span>
+                                <span class="chart-legend-item" data-series="3" style="--swatch: var(--chart-color-4)">Sats</span>
+                                <span class="chart-legend-item" data-series="4" style="--swatch: var(--chart-color-5)">HDOP</span>
+                            </div>
+                        </div>
                         <div style="border-top: 1px solid var(--header-border); margin-top: 16px; padding-top: 16px;">
-                            <h3 style="border: none; padding: 0; margin-bottom: 12px; font-size: 0.72rem; letter-spacing: 3px; border-left: none;">Compass (External Mag)</h3>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                                <h3 style="border: none; padding: 0; margin: 0; font-size: 0.72rem; letter-spacing: 3px; border-left: none;">Compass (External Mag)</h3>
+                                <button class="btn-chart-toggle" id="chart-toggle-compass" aria-pressed="false">CHART</button>
+                            </div>
                             <div class="dashboard-grid">
                                 <div>
                                     <div class="sensor-row"><span class="label">Heading</span><div class="sensor-data"><span class="value" id="comp-heading">--</span><span class="unit">°</span></div></div>
@@ -296,28 +312,70 @@
                                     <div class="sensor-row"><span class="label">Mag Z</span><div class="sensor-data"><span class="value" id="comp-z">--</span><span class="unit"></span></div></div>
                                 </div>
                             </div>
+                            <div class="sensor-chart-container" id="chart-compass" hidden>
+                                <canvas class="sensor-chart" id="canvas-compass"></canvas>
+                                <div class="chart-legend" id="legend-compass">
+                                    <span class="chart-legend-item" data-series="0" style="--swatch: var(--chart-color-1)">Heading</span>
+                                    <span class="chart-legend-item" data-series="1" style="--swatch: var(--chart-color-2)">Mag X</span>
+                                    <span class="chart-legend-item" data-series="2" style="--swatch: var(--chart-color-3)">Mag Y</span>
+                                    <span class="chart-legend-item" data-series="3" style="--swatch: var(--chart-color-4)">Mag Z</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="dashboard-grid">
                     <div class="card">
-                        <h3>Orientation</h3>
+                        <div class="card-header">
+                            <h3>Orientation</h3>
+                            <button class="btn-chart-toggle" id="chart-toggle-orientation" aria-pressed="false">CHART</button>
+                        </div>
                         <div class="sensor-row"><span class="label">Roll</span><div class="sensor-data"><span class="value" id="imu-roll">--</span><span class="unit">°</span></div></div>
                         <div class="sensor-row"><span class="label">Pitch</span><div class="sensor-data"><span class="value" id="imu-pitch">--</span><span class="unit">°</span></div></div>
                         <div class="sensor-row" style="margin-top:8px;"><span class="label">Temperature</span><div class="sensor-data"><span class="value" id="imu-temp">--</span><span class="unit">°C</span></div></div>
+                        <div class="sensor-chart-container" id="chart-orientation" hidden>
+                            <canvas class="sensor-chart" id="canvas-orientation"></canvas>
+                            <div class="chart-legend" id="legend-orientation">
+                                <span class="chart-legend-item" data-series="0" style="--swatch: var(--chart-color-1)">Roll</span>
+                                <span class="chart-legend-item" data-series="1" style="--swatch: var(--chart-color-2)">Pitch</span>
+                                <span class="chart-legend-item" data-series="2" style="--swatch: var(--chart-color-3)">Temp</span>
+                            </div>
+                        </div>
                     </div>
                     <div class="card">
-                        <h3>Accelerometer (g)</h3>
+                        <div class="card-header">
+                            <h3>Accelerometer (g)</h3>
+                            <button class="btn-chart-toggle" id="chart-toggle-accelerometer" aria-pressed="false">CHART</button>
+                        </div>
                         <div class="sensor-row"><span class="label">X</span><div class="sensor-data"><span class="value" id="accel-x">--</span><span class="unit"></span></div></div>
                         <div class="sensor-row"><span class="label">Y</span><div class="sensor-data"><span class="value" id="accel-y">--</span><span class="unit"></span></div></div>
                         <div class="sensor-row"><span class="label">Z</span><div class="sensor-data"><span class="value" id="accel-z">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-chart-container" id="chart-accelerometer" hidden>
+                            <canvas class="sensor-chart" id="canvas-accelerometer"></canvas>
+                            <div class="chart-legend" id="legend-accelerometer">
+                                <span class="chart-legend-item" data-series="0" style="--swatch: var(--chart-color-1)">X</span>
+                                <span class="chart-legend-item" data-series="1" style="--swatch: var(--chart-color-2)">Y</span>
+                                <span class="chart-legend-item" data-series="2" style="--swatch: var(--chart-color-3)">Z</span>
+                            </div>
+                        </div>
                     </div>
                     <div class="card">
-                        <h3>Gyroscope (°/s)</h3>
+                        <div class="card-header">
+                            <h3>Gyroscope (°/s)</h3>
+                            <button class="btn-chart-toggle" id="chart-toggle-gyroscope" aria-pressed="false">CHART</button>
+                        </div>
                         <div class="sensor-row"><span class="label">X</span><div class="sensor-data"><span class="value" id="gyro-x">--</span><span class="unit"></span></div></div>
                         <div class="sensor-row"><span class="label">Y</span><div class="sensor-data"><span class="value" id="gyro-y">--</span><span class="unit"></span></div></div>
                         <div class="sensor-row"><span class="label">Z</span><div class="sensor-data"><span class="value" id="gyro-z">--</span><span class="unit"></span></div></div>
+                        <div class="sensor-chart-container" id="chart-gyroscope" hidden>
+                            <canvas class="sensor-chart" id="canvas-gyroscope"></canvas>
+                            <div class="chart-legend" id="legend-gyroscope">
+                                <span class="chart-legend-item" data-series="0" style="--swatch: var(--chart-color-1)">X</span>
+                                <span class="chart-legend-item" data-series="1" style="--swatch: var(--chart-color-2)">Y</span>
+                                <span class="chart-legend-item" data-series="2" style="--swatch: var(--chart-color-3)">Z</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

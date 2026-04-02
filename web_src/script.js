@@ -9,6 +9,202 @@ function escapeHtml(str) {
         .replace(/'/g, '&#39;');
 }
 
+// ─── SENSOR CHART ENGINE ──────────────────────────────────────────────────────
+// Motor de gráfico de linha canvas-nativo, sem dependências externas.
+// Cada instância gerencia um buffer circular por série e renderiza no RAF loop.
+
+class SensorChart {
+    constructor(canvas, seriesConfig, bufferSize) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.series = seriesConfig; // [{label, color, colorVar}]
+        this.bufferSize = bufferSize || 200; // 200 pts = 10s @ 20Hz
+        this.buffers = seriesConfig.map(function() { return new Float32Array(bufferSize || 200); });
+        this.head = 0;
+        this.count = 0;
+        this.visible = seriesConfig.map(function() { return true; });
+        var self = this;
+        this._ro = new ResizeObserver(function() { self._resize(); });
+        this._ro.observe(canvas.parentElement);
+        this._resize();
+    }
+
+    _resize() {
+        var rect = this.canvas.parentElement.getBoundingClientRect();
+        var dpr = window.devicePixelRatio || 1;
+        this.canvas.width  = Math.floor(rect.width * dpr);
+        this.canvas.height = Math.floor(120 * dpr);
+        this.canvas.style.height = '120px';
+        this._dpr = dpr;
+    }
+
+    push(values) {
+        var i;
+        for (i = 0; i < this.buffers.length; i++) {
+            this.buffers[i][this.head] = (i < values.length) ? values[i] : 0;
+        }
+        this.head = (this.head + 1) % this.bufferSize;
+        if (this.count < this.bufferSize) this.count++;
+    }
+
+    setVisible(index, visible) {
+        if (index >= 0 && index < this.visible.length) this.visible[index] = visible;
+    }
+
+    render() {
+        if (this.count < 2) return;
+        var ctx = this.ctx;
+        var W = this.canvas.width;
+        var H = this.canvas.height;
+        var dpr = this._dpr || 1;
+        ctx.clearRect(0, 0, W, H);
+
+        // Min/max global das séries visíveis
+        var min = Infinity, max = -Infinity;
+        var i, j, idx, v;
+        for (i = 0; i < this.series.length; i++) {
+            if (!this.visible[i]) continue;
+            for (j = 0; j < this.count; j++) {
+                idx = (this.head - this.count + j + this.bufferSize) % this.bufferSize;
+                v = this.buffers[i][idx];
+                if (v < min) min = v;
+                if (v > max) max = v;
+            }
+        }
+        if (!isFinite(min) || !isFinite(max)) return;
+        if (min === max) { min -= 1; max += 1; }
+        var range = max - min;
+
+        // Grid — 4 linhas horizontais usando --list-border do tema atual
+        var gridColor = getComputedStyle(document.body).getPropertyValue('--list-border').trim() || 'rgba(128,128,128,0.2)';
+        ctx.strokeStyle = gridColor;
+        ctx.lineWidth = 1;
+        var g;
+        for (g = 0; g <= 3; g++) {
+            var gy = Math.round(H * g / 3) + 0.5;
+            ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
+        }
+
+        // Séries
+        var PAD = Math.round(6 * dpr);
+        var plotH = H - PAD * 2;
+        for (i = 0; i < this.series.length; i++) {
+            if (!this.visible[i]) continue;
+            ctx.strokeStyle = this.series[i].color;
+            ctx.lineWidth = Math.round(1.5 * dpr);
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            for (j = 0; j < this.count; j++) {
+                idx = (this.head - this.count + j + this.bufferSize) % this.bufferSize;
+                v = this.buffers[i][idx];
+                var x = (j / (this.bufferSize - 1)) * W;
+                var y = PAD + plotH - ((v - min) / range) * plotH;
+                if (j === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+        }
+    }
+
+    destroy() {
+        this._ro.disconnect();
+    }
+}
+
+// ─── SENSOR CHART — Configuração e estado ─────────────────────────────────────
+
+function _cssColor(varName) {
+    // Lê de document.body — o data-theme="dark" é aplicado no <body>, não no <html>.
+    // getComputedStyle(documentElement) não enxerga overrides de [data-theme="dark"].
+    return getComputedStyle(document.body).getPropertyValue(varName).trim();
+}
+
+var SENSOR_CHART_CONFIGS = {
+    orientation: [
+        { label: 'Roll',  colorVar: '--chart-color-1' },
+        { label: 'Pitch', colorVar: '--chart-color-2' },
+        { label: 'Temp',  colorVar: '--chart-color-3' }
+    ],
+    accelerometer: [
+        { label: 'X', colorVar: '--chart-color-1' },
+        { label: 'Y', colorVar: '--chart-color-2' },
+        { label: 'Z', colorVar: '--chart-color-3' }
+    ],
+    gyroscope: [
+        { label: 'X', colorVar: '--chart-color-1' },
+        { label: 'Y', colorVar: '--chart-color-2' },
+        { label: 'Z', colorVar: '--chart-color-3' }
+    ],
+    compass: [
+        { label: 'Heading', colorVar: '--chart-color-1' },
+        { label: 'Mag X',   colorVar: '--chart-color-2' },
+        { label: 'Mag Y',   colorVar: '--chart-color-3' },
+        { label: 'Mag Z',   colorVar: '--chart-color-4' }
+    ],
+    gps: [
+        { label: 'Alt',    colorVar: '--chart-color-1' },
+        { label: 'Speed',  colorVar: '--chart-color-2' },
+        { label: 'Course', colorVar: '--chart-color-3' },
+        { label: 'Sats',   colorVar: '--chart-color-4' },
+        { label: 'HDOP',   colorVar: '--chart-color-5' }
+    ]
+};
+
+var sensorCharts = {}; // { orientation: SensorChart, ... }
+
+function initSensorCharts() {
+    var ids = Object.keys(SENSOR_CHART_CONFIGS);
+    for (var k = 0; k < ids.length; k++) {
+        var id = ids[k];
+        var canvas = document.getElementById('canvas-' + id);
+        if (!canvas) continue;
+        var cfgDefs = SENSOR_CHART_CONFIGS[id];
+        var series = cfgDefs.map(function(s) {
+            return { label: s.label, color: _cssColor(s.colorVar), colorVar: s.colorVar };
+        });
+        sensorCharts[id] = new SensorChart(canvas, series);
+
+        // Toggle button — abre/fecha container do gráfico
+        (function(chartId) {
+            var btn = document.getElementById('chart-toggle-' + chartId);
+            var container = document.getElementById('chart-' + chartId);
+            if (!btn || !container) return;
+            btn.addEventListener('click', function() {
+                var open = btn.getAttribute('aria-pressed') === 'true';
+                btn.setAttribute('aria-pressed', open ? 'false' : 'true');
+                container.hidden = open;
+                if (!open) sensorCharts[chartId]._resize(); // força resize ao abrir
+            });
+        })(id);
+
+        // Legenda — toggle por série individual
+        (function(chartId) {
+            var legend = document.getElementById('legend-' + chartId);
+            if (!legend) return;
+            var items = legend.querySelectorAll('.chart-legend-item');
+            items.forEach(function(item) {
+                item.addEventListener('click', function() {
+                    var idx = parseInt(item.getAttribute('data-series'), 10);
+                    item.classList.toggle('inactive');
+                    sensorCharts[chartId].setVisible(idx, !item.classList.contains('inactive'));
+                });
+            });
+        })(id);
+    }
+}
+
+function refreshChartColors() {
+    var ids = Object.keys(sensorCharts);
+    for (var k = 0; k < ids.length; k++) {
+        var id = ids[k];
+        var chart = sensorCharts[id];
+        var cfgDefs = SENSOR_CHART_CONFIGS[id];
+        if (!cfgDefs) continue;
+        for (var i = 0; i < chart.series.length; i++) {
+            if (cfgDefs[i]) chart.series[i].color = _cssColor(cfgDefs[i].colorVar);
+        }
+    }
+}
+
 // ─── DOM CACHE LAYER ──────────────────────────────────────────────────────────
 // Pré-aloca todas as referências de elementos do DOM que são atualizados a 20Hz
 // Evita 600+ buscas no DOM por segundo, reduzindo CPU do navegador em ~60%
@@ -380,6 +576,10 @@ function startRenderLoop() {
             }
             if (document.getElementById('sensors').classList.contains('active')) {
                 updateSensorsFromData(frame._sensorData);
+                var _chartIds = Object.keys(sensorCharts);
+                for (var _ci = 0; _ci < _chartIds.length; _ci++) {
+                    sensorCharts[_chartIds[_ci]].render();
+                }
             }
             if (document.getElementById('radio').classList.contains('active')) {
                 updateRadioFromData(frame._channelData);
@@ -670,6 +870,28 @@ function updateSensorsFromData(d) {
             if (d.gps.satellites !== undefined && DOM.gpsSats) DOM.gpsSats.innerText = d.gps.satellites;
         }
     }
+
+    // ── Push de dados para os gráficos (apenas se o container estiver visível) ──
+    if (d.valid) {
+        if (sensorCharts.orientation && !document.getElementById('chart-orientation').hidden)
+            sensorCharts.orientation.push([d.angles.roll, d.angles.pitch, d.temperature]);
+
+        if (sensorCharts.accelerometer && !document.getElementById('chart-accelerometer').hidden)
+            sensorCharts.accelerometer.push([d.accel.x, d.accel.y, d.accel.z]);
+
+        if (sensorCharts.gyroscope && !document.getElementById('chart-gyroscope').hidden)
+            sensorCharts.gyroscope.push([d.gyro.x, d.gyro.y, d.gyro.z]);
+    }
+
+    if (d.compass && d.compass.valid) {
+        if (sensorCharts.compass && !document.getElementById('chart-compass').hidden)
+            sensorCharts.compass.push([d.compass.heading, d.compass.x, d.compass.y, d.compass.z]);
+    }
+
+    if (d.gps && d.gps.valid) {
+        if (sensorCharts.gps && !document.getElementById('chart-gps').hidden)
+            sensorCharts.gps.push([d.gps.alt, d.gps.speed, d.gps.course, d.gps.satellites, d.gps.hdop]);
+    }
 }
 
 function updateRadioFromData(d) {
@@ -756,6 +978,7 @@ function loadSettings() {
             } else {
                 document.body.removeAttribute('data-theme');
             }
+            refreshChartColors(); // re-resolve chart colors após tema inicial ser aplicado
         }
 
         const debugToggle = document.getElementById('debug-toggle');
@@ -841,6 +1064,7 @@ function toggleTheme() {
     } else {
         document.body.removeAttribute('data-theme');
     }
+    refreshChartColors();
     fetchWithTimeout('/api/settings', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -1288,6 +1512,7 @@ document.addEventListener('DOMContentLoaded', function() {
     DOM.connectionStatus = document.getElementById('connectionStatus');
 
     initHUD(); // HUD está na aba Home (ativa por padrão)
+    initSensorCharts(); // Gráficos de sensor com toggle e legenda interativa
     loadSettings();
     startPolling();
     startRenderLoop();      // Fase 2: inicia loop RAF desacoplado
