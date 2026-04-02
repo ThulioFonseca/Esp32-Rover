@@ -41,6 +41,38 @@ To modify the web interface, edit files in `web_src/`. Run `python3 tools/build_
 
 ---
 
+## Web UI Design System (MANDATORY)
+
+**All changes and new implementations in `web_src/` MUST adhere to the design system documented in `design-system/`.**
+
+The reference files are:
+- `design-system/design-system.md` — Full human-readable specification (colors, typography, spacing, components, naming conventions)
+- `design-system/tokens.json` — W3C DTCG token file (machine-readable)
+
+### Non-negotiable rules
+
+1. **CSS Variables only** — Never hardcode color, border, or surface values. Always use the existing `--token-name` variables defined in `:root` and `[data-theme="dark"]`. Both themes must work correctly after any change.
+
+2. **Zero border-radius** — All new UI elements must use `border-radius: 0`. The only exceptions already in the codebase are the pill toggle (`.slider.round`) and map layer buttons — do not add new exceptions without explicit justification.
+
+3. **Typography** — Use only the three established font families:
+   - `'Rajdhani', 'Arial Narrow', Arial, sans-serif` → labels, headings, tabs, buttons
+   - `'JetBrains Mono', 'Courier New', monospace` → data readouts, inputs, badges
+   - `'Share Tech Mono', 'Courier New', monospace` → HUD SVG text and terminal only
+
+4. **Glow-based shadows** — Elevation is expressed as centered glows using `var(--accent-color)`, `var(--watermelon)`, or HUD `--primary`. No offset drop shadows on new elements.
+
+5. **Component naming** — Follow the existing prefix conventions:
+   - `hud-*` for HUD elements, `map-*`/`minimap-*` for map, `data-*` for HUD panel pairs, `btn-*` for buttons, `stroke-*` for SVG stroke classes. State modifiers use the value directly (e.g., `.armed-true`, `.fix-ok`, `.active`).
+
+6. **HUD isolation** — The `.hud-viewport` scope has its own token layer (`--primary`, `--glow`, `--fpv-aberration`, etc.) fixed to phosphor-green, independent of the app theme. HUD internals must use these local tokens, not the app-level `--accent-color`.
+
+7. **Spacing** — Follow the existing base-4 rhythm (4, 8, 12, 16, 20, 24 px) for structural spacing. Fine internal spacing uses 2–3 px increments. Do not introduce arbitrary values outside the scale in `design-system/tokens.json`.
+
+8. **New components** — Before adding a new UI pattern, check the Component Inventory in `design-system/design-system.md` (Section 3). Reuse existing patterns (`.card`, `.sensor-row`, `.data-row`, `.btn-primary`, etc.) before creating new ones.
+
+---
+
 ## Architecture Overview
 
 This is an **ESP32-based Tank Robot Controller** using **differential drive** (left + right motor control via throttle + steering mixing).
