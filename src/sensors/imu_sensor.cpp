@@ -70,7 +70,7 @@ void ImuSensor::update() {
     if (!initialized) return;
 
     unsigned long now = millis();
-    if (now - lastUpdateMs < 20) return; // 50 Hz — sincroniza com o loop de controle principal
+    if (now - lastUpdateMs < 50) return; // 20 Hz — suficiente para navegação; reduz carga no barramento I2C
     float dt = (now - lastUpdateMs) / 1000.0f;
     lastUpdateMs = now;
 
@@ -81,6 +81,19 @@ void ImuSensor::update() {
 const Types::ImuData& ImuSensor::getData() const { return data; }
 bool ImuSensor::isDataValid() const               { return data.isValid; }
 bool ImuSensor::needsReinit() const               { return errorCount >= Config::I2C_SENSOR_ERROR_THRESHOLD; }
+
+bool ImuSensor::softReset() {
+    // Envia DEVICE_RESET (bit 7) via registrador PWR_MGMT_1.
+    // O sensor executa reset interno em ~100ms e volta responsivo sem power cycle.
+    // Não interrompe o driver Wire — só tenta escrever no endereço.
+    if (!writeRegister(REG_PWR_MGMT_1, 0x80)) return false; // DEVICE_RESET
+    delay(100);
+    if (!writeRegister(REG_PWR_MGMT_1, 0x01)) return false; // acorda com PLL do gyro
+    delay(100);
+    errorCount = 0;
+    _compReady = false; // filtro complementar precisa ser resemeado após reset
+    return true;
+}
 
 // ── I2C helpers ───────────────────────────────────────────────────────────────
 

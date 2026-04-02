@@ -33,6 +33,11 @@ public:
     // Retorna true se o sensor acumulou erros suficientes para justificar recovery I2C
     bool needsReinit() const;
 
+    // Tenta reset via registrador PWR_MGMT_1 sem reinicialização completa.
+    // Útil quando o barramento I2C ainda responde mas o sensor está em estado inconsistente.
+    // Retorna false se o sensor não responder aos writes.
+    bool softReset();
+
 private:
     TwoWire*          i2c;
     Types::ImuData    data;

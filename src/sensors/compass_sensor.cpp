@@ -122,3 +122,13 @@ const Types::CompassData& CompassSensor::getData() const {
 bool CompassSensor::needsReinit() const {
     return errorCount >= Config::I2C_SENSOR_ERROR_THRESHOLD;
 }
+
+bool CompassSensor::softReset() {
+    // Reescreve os três registradores de configuração do HMC5883L para forçar
+    // o reinício do estado interno do chip sem necessidade de power cycle.
+    if (!writeRegister(REG_CONFIG_A, 0x70)) return false; // 8 samples, 15Hz
+    if (!writeRegister(REG_CONFIG_B, 0xA0)) return false; // Gain 5
+    if (!writeRegister(REG_MODE,     0x00)) return false; // Continuous measurement
+    errorCount = 0;
+    return true;
+}

@@ -41,6 +41,10 @@ bool TankController::initialize() {
     Wire.begin(Pins::SDA, Pins::SCL, Config::I2C_FREQ_HZ);
     Wire.setTimeOut(Config::I2C_NORMAL_TIMEOUT_MS);
 
+    // Aguarda estabilização do barramento e dos sensores após boot/restart.
+    // Sensores em estado de brownout podem precisar de até 2s para VDD estabilizar.
+    vTaskDelay(pdMS_TO_TICKS(2000));
+
     // Sensores são opcionais — falha na inicialização não trava o boot.
     if (Config::IMU_ENABLED) {
         debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando ImuSensor...");
@@ -181,8 +185,36 @@ void TankController::clearSystemLogs() {
 
 void TankController::recoverI2CBus() {
     debugManager.logf(DebugManager::LOG_LEVEL_WARN,
-        "I2C recovery tentativa %d — liberando GPIO matrix, bit-bang SCL, reinit sensores",
+        "I2C recovery tentativa %d — iniciando sequência de recuperação",
         recoveryAttempts + 1);
+
+    // ── Nível 0: Soft-reset via registrador (Wire ainda ativo) ───────────────
+    // Tenta antes de qualquer manipulação de GPIO. Se o barramento ainda aceita
+    // writes, o sensor sai do estado inconsistente sem precisar de GPIO bit-bang.
+    {
+        bool imuSoftOk     = !Config::IMU_ENABLED || imuSensor.softReset();
+        bool compassSoftOk = compassSensor.softReset();
+
+        if (imuSoftOk && compassSoftOk) {
+            vTaskDelay(pdMS_TO_TICKS(200)); // aguarda reset interno dos sensores
+
+            bool imuOk     = !Config::IMU_ENABLED || imuSensor.initialize(&Wire);
+            bool compassOk = compassSensor.initialize(&Wire);
+
+            if (imuOk && compassOk) {
+                debugManager.logf(DebugManager::LOG_LEVEL_INFO,
+                    "Recovery I2C (soft-reset) bem-sucedido na tentativa %d — sensores online",
+                    recoveryAttempts + 1);
+                recoveryAttempts = 0;
+                Wire.setTimeOut(Config::I2C_NORMAL_TIMEOUT_MS); // restaura timeout normal
+                return;
+            }
+        }
+        debugManager.logf(DebugManager::LOG_LEVEL_WARN,
+            "Soft-reset insuficiente — escalando para GPIO bit-bang");
+    }
+
+    // ── Nível 1: GPIO bit-bang SCL ───────────────────────────────────────────
 
     // 1. Para o driver Wire
     Wire.end();
@@ -235,8 +267,10 @@ void TankController::recoverI2CBus() {
 
     if (imuOk && compassOk) {
         debugManager.logf(DebugManager::LOG_LEVEL_INFO,
-            "Recovery I2C bem-sucedido na tentativa %d — sensores online", recoveryAttempts + 1);
+            "Recovery I2C (bit-bang) bem-sucedido na tentativa %d — sensores online",
+            recoveryAttempts + 1);
         recoveryAttempts = 0;
+        Wire.setTimeOut(Config::I2C_NORMAL_TIMEOUT_MS); // restaura timeout normal
         return;
     }
 
@@ -245,14 +279,19 @@ void TankController::recoverI2CBus() {
 
     recoveryAttempts++;
 
-    // 6. Último recurso: ESP.restart() após 3 tentativas consecutivas sem sucesso.
-    //    Power cycle sempre funciona; ESP.restart() faz reset completo de hardware equivalente.
-    //    pendingNvsRtc.magic NÃO é setado — restart é puramente para recovery de hardware.
+    // ── Nível 2: Espera longa — sensores precisam de power cycle ────────────
+    // ESP.restart() NÃO corta VDD dos sensores — é ineficaz quando eles estão
+    // em estado de brownout. Em vez disso, aguarda 30s sem atividade no barramento
+    // para que a tensão se estabilize e os sensores possam se recuperar sozinhos.
+    // Se isso ainda falhar, o usuário deve fazer um power cycle manual (desligar USB).
     if (recoveryAttempts >= 3) {
         debugManager.logf(DebugManager::LOG_LEVEL_ERROR,
-            "Barramento I2C irrecuperável após %d tentativas — ESP.restart()", recoveryAttempts);
-        vTaskDelay(pdMS_TO_TICKS(200));
-        ESP.restart();
+            "Barramento I2C irrecuperável após %d tentativas de software. "
+            "Aguardando 30s sem atividade — se o problema persistir, faça power cycle (desconectar/reconectar USB).",
+            recoveryAttempts);
+        Wire.setTimeOut(Config::I2C_NORMAL_TIMEOUT_MS); // restaura timeout antes da espera
+        vTaskDelay(pdMS_TO_TICKS(30000));
+        recoveryAttempts = 0; // permite novas tentativas após a espera
     }
 }
 

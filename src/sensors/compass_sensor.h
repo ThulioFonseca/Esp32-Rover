@@ -37,6 +37,10 @@ public:
 
     const Types::CompassData& getData() const;
     bool needsReinit() const;
+
+    // Reescreve os registradores de configuração para forçar reinício do modo de medição
+    // sem precisar de power cycle. Retorna false se o sensor não responder.
+    bool softReset();
 };
 
 #endif

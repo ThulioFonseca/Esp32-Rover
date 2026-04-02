@@ -52,7 +52,7 @@ namespace Config {
   constexpr uint8_t IBUS_MODE = 1; // IBusBM: modo 1 = apenas leitura
 
   // I2C — barramento único compartilhado (pinos 21/22)
-  constexpr uint32_t I2C_FREQ_HZ = 400000; // Fast Mode (400 kHz) — reduz latência de leitura IMU de ~1.4ms para ~350µs
+  constexpr uint32_t I2C_FREQ_HZ = 100000; // Standard Mode (100 kHz) — mais robusto a variações de VDD e temperatura; latência aceitável para sensores de navegação
   constexpr uint16_t I2C_SENSOR_ERROR_THRESHOLD = 5; // Erros consecutivos antes de recovery
 
   // Timeouts do barramento I2C por transação
