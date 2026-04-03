@@ -490,65 +490,55 @@ function updateMiniMap(lat, lng, heading, valid) {
         ctx.stroke();
     }
 
-    // ── Rover marker — fixed pixel size, heading-aware ────────────────────────
-    // Marker is intentionally viewport-size-independent (stays readable at any zoom).
+    // ── Rover marker — Waze-style navigation arrow, heading-aware ────────────
     var rv = toXY(lat, lng);
     var dpr2 = window.devicePixelRatio || 1;
-    var R  = 14 * dpr2;   // outer circle radius
-    var Ra = 22 * dpr2;   // accuracy halo radius
-    var coneLen = 28 * dpr2; // heading cone length
-    var coneHalf = 0.38;    // cone half-angle in radians (~22°)
+    var sz   = 13 * dpr2;  // half-size of arrow body
+    var Ra   = 24 * dpr2;  // accuracy halo radius
     var headRad = heading * Math.PI / 180;
 
     ctx.save();
     ctx.translate(rv.x, rv.y);
 
-    // 1 — Drop shadow
-    ctx.shadowColor = 'rgba(0,0,0,0.6)';
-    ctx.shadowBlur  = 8 * dpr2;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 2 * dpr2;
-
-    // 2 — Accuracy halo (pulsing feel via semi-transparent ring)
+    // 1 — Accuracy halo (axis-aligned, drawn before rotation)
     ctx.beginPath();
     ctx.arc(0, 0, Ra, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(0, 232, 122, 0.10)';
+    ctx.fillStyle = 'rgba(0, 232, 122, 0.07)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0, 232, 122, 0.30)';
-    ctx.lineWidth = 1.5 * dpr2;
-    ctx.stroke();
-
-    // 3 — Heading cone (direction indicator)
-    ctx.shadowColor = 'transparent';
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.arc(0, 0, coneLen, headRad - Math.PI / 2 - coneHalf, headRad - Math.PI / 2 + coneHalf);
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(0, 232, 122, 0.35)';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0, 232, 122, 0.80)';
+    ctx.strokeStyle = 'rgba(0, 232, 122, 0.22)';
     ctx.lineWidth = 1 * dpr2;
     ctx.stroke();
 
-    // 4 — Outer circle (white ring — contrasts on any tile colour)
-    ctx.beginPath();
-    ctx.arc(0, 0, R, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur  = 6 * dpr2;
-    ctx.fill();
+    // 2 — Rotate context to heading (tip faces direction of travel)
+    ctx.rotate(headRad);
 
-    // 5 — Inner filled circle (accent colour)
-    ctx.shadowColor = 'transparent';
+    // 3 — Navigation arrow body glow (centered, no offset — per design system)
+    ctx.shadowColor = '#00e87a';
+    ctx.shadowBlur  = 10 * dpr2;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // 4 — Arrow body: 6-point chevron, tip points up (forward/north at heading=0)
     ctx.beginPath();
-    ctx.arc(0, 0, R - 3 * dpr2, 0, Math.PI * 2);
+    ctx.moveTo(0,           -sz * 1.5);   // front tip
+    ctx.lineTo( sz * 0.72,  sz * 0.55);   // right rear
+    ctx.lineTo( sz * 0.26,  sz * 0.12);   // right notch
+    ctx.lineTo(0,           sz * 0.42);   // rear center
+    ctx.lineTo(-sz * 0.26,  sz * 0.12);   // left notch
+    ctx.lineTo(-sz * 0.72,  sz * 0.55);   // left rear
+    ctx.closePath();
     ctx.fillStyle = '#00e87a';
     ctx.fill();
 
-    // 6 — Center dot (dark, anchors the marker visually)
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 1.5 * dpr2;
+    ctx.stroke();
+
+    // 5 — Center dot (white, anchors GPS position point)
     ctx.beginPath();
-    ctx.arc(0, 0, 3.5 * dpr2, 0, Math.PI * 2);
-    ctx.fillStyle = '#003a1a';
+    ctx.arc(0, 0, 3 * dpr2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.fill();
 
     ctx.restore();

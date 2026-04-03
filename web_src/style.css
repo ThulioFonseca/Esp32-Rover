@@ -1375,8 +1375,8 @@ input:checked + .slider:before {
     background: rgba(var(--accent-rgb), 0.04);
     border-bottom: 1px solid var(--header-border);
     font-family: 'JetBrains Mono', 'Courier New', monospace;
-    font-size: 0.58rem;
-    letter-spacing: 2px;
+    font-size: clamp(0.55rem, 0.65vw, 0.65rem);
+    letter-spacing: 3px;
     color: var(--text-muted);
     text-transform: uppercase;
     transition: all 0.4s ease;

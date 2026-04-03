@@ -111,6 +111,37 @@ void DebugManager::clearLogs() {
   }
 }
 
+void DebugManager::logSerial(LogLevel level, const char* format, ...) {
+  if (!isEnabled) return;
+
+  char msgBuf[192];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(msgBuf, sizeof(msgBuf), format, args);
+  va_end(args);
+
+  const char* levelStr;
+  switch (level) {
+    case LOG_LEVEL_DEBUG: levelStr = "DEBUG"; break;
+    case LOG_LEVEL_INFO:  levelStr = "INFO";  break;
+    case LOG_LEVEL_WARN:  levelStr = "WARN";  break;
+    case LOG_LEVEL_ERROR: levelStr = "ERROR"; break;
+    default:              levelStr = "LOG";   break;
+  }
+
+  unsigned long ms = millis();
+  unsigned long s = ms / 1000;
+
+  char finalMsg[MAX_LOG_LINE_LEN];
+  snprintf(finalMsg, sizeof(finalMsg), "[%02lu:%02lu:%02lu] [%s] %s",
+           (s / 3600), ((s % 3600) / 60), (s % 60), levelStr, msgBuf);
+
+  if (serialMutex != NULL && xSemaphoreTake(serialMutex, 0) == pdTRUE) {
+    ets_printf("%s\n", finalMsg);
+    xSemaphoreGive(serialMutex);
+  }
+}
+
 void DebugManager::setEnabled(bool enabled) {
     isEnabled = enabled;
 }

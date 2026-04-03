@@ -23,6 +23,8 @@ public:
   };
 
   void logf(LogLevel level, const char* format, ...);
+  // Variante serial-only: imprime apenas na saída serial, nunca insere no buffer circular (web log).
+  void logSerial(LogLevel level, const char* format, ...);
   // Log de controle baseado em mudança — só registra quando valores mudam significativamente
   void printControlState(const Types::ChannelData& channels, const Types::MotorCommands& motors);
   void printSystemStatus(Types::SystemState state);

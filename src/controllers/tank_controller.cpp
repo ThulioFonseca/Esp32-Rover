@@ -73,8 +73,8 @@ bool TankController::initialize() {
     motorController.performArmingSequence();
 
     currentState = Types::ARMED;
-    systemArmed = true;
-    debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Armamento concluído — sistema ARMADO");
+    // systemArmed permanece false — usuário arma via interface web
+    debugManager.logf(DebugManager::LOG_LEVEL_INFO, "ESCs inicializados — aguardando armamento via interface");
 
     debugManager.logf(DebugManager::LOG_LEVEL_INFO, "=== TankController inicializado com sucesso ===");
     return true;
@@ -109,7 +109,7 @@ void TankController::update() {
                 case Types::ERROR:        stateStr = "ERROR";   break;
                 default:                  stateStr = "?";       break;
             }
-            debugManager.logf(DebugManager::LOG_LEVEL_DEBUG,
+            debugManager.logSerial(DebugManager::LOG_LEVEL_DEBUG,
                 "[HB] %s | armed:%d | heap:%u", stateStr, systemArmed, ESP.getFreeHeap());
         }
     }
