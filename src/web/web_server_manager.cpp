@@ -24,6 +24,8 @@ static uint32_t hw_heap_total;
 static uint32_t hw_flash_size;
 static uint32_t hw_sketch_size;
 static String hw_mac;
+static uint32_t hw_free_sketch_space;
+static String   hw_sdk_version;
 
 WebServerManager::WebServerManager(const char* ssid, const char* password)
     : ap_ssid(ssid), ap_password(password), server(80), ws("/ws") {}
@@ -85,7 +87,9 @@ bool WebServerManager::begin() {
     hw_heap_total    = ESP.getHeapSize();
     hw_flash_size    = ESP.getFlashChipSize();
     hw_sketch_size   = ESP.getSketchSize();
-    hw_mac           = WiFi.macAddress();
+    hw_mac                = WiFi.macAddress();
+    hw_free_sketch_space  = ESP.getFreeSketchSpace();
+    hw_sdk_version        = ESP.getSdkVersion();
 
     setupWebSocket();
     setupRoutes();
@@ -132,7 +136,7 @@ void WebServerManager::setupRoutes() {
     });
 
     // System Info API — usa apenas valores em cache (sem acessos SPI no hot path)
-    server.on("/api/sysinfo", HTTP_GET, [](AsyncWebServerRequest *request){
+    server.on("/api/sysinfo", HTTP_GET, [this](AsyncWebServerRequest *request){
         JsonDocument doc;
         doc["firmware_version"] = FIRMWARE_VERSION;
         doc["chip_model"]    = hw_chip_model;
@@ -140,16 +144,35 @@ void WebServerManager::setupRoutes() {
         doc["cpu_freq"]      = hw_cpu_freq;
         doc["heap_total"]    = hw_heap_total;
         doc["flash_size"]    = hw_flash_size;
-        doc["sketch_size"]   = hw_sketch_size;
-        doc["uptime"]        = millis();
-        doc["mac"]           = hw_mac;
-        
+        doc["sketch_size"]       = hw_sketch_size;
+        doc["free_sketch_space"] = hw_free_sketch_space;
+        doc["sdk_version"]       = hw_sdk_version;
+        doc["uptime"]            = millis();
+        doc["mac"]               = hw_mac;
+        doc["free_heap"]         = ESP.getFreeHeap();
+        doc["min_free_heap"]     = ESP.getMinFreeHeap();
+        doc["ws_clients"]        = ws.count();
+
+        const char* stateStr;
+        switch (tankController.getSystemState()) {
+            case Types::INITIALIZING: stateStr = "INITIALIZING"; break;
+            case Types::ARMING:       stateStr = "ARMING";       break;
+            case Types::ARMED:        stateStr = "ARMED";        break;
+            case Types::TIMEOUT:      stateStr = "TIMEOUT";      break;
+            case Types::ERROR:        stateStr = "ERROR";        break;
+            default:                  stateStr = "UNKNOWN";      break;
+        }
+        doc["system_state"] = stateStr;
+
         if (Config::WIFI_MODE == 1 && WiFi.status() == WL_CONNECTED) {
             doc["ip"]      = WiFi.localIP().toString();
             doc["ssid"]    = WiFi.SSID();
             doc["mode"]    = "Station";
             doc["gateway"] = WiFi.gatewayIP().toString();
             doc["channel"] = WiFi.channel();
+            doc["rssi"]    = WiFi.RSSI();
+            doc["bssid"]   = WiFi.BSSIDstr();
+            doc["subnet"]  = WiFi.subnetMask().toString();
         } else {
             doc["ip"]      = WiFi.softAPIP().toString();
             doc["ssid"]    = WiFi.softAPSSID();

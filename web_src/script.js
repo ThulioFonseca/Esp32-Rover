@@ -969,14 +969,32 @@ function updateSysInfo() {
     fetchWithTimeout('/api/sysinfo')
         .then(function(response) { return response.json(); })
         .then(function(data) {
+            var stateColor;
+            switch (data.system_state) {
+                case 'ARMED':        stateColor = 'var(--accent-color)'; break;
+                case 'ARMING':       stateColor = 'var(--warning)';      break;
+                case 'INITIALIZING': stateColor = 'var(--warning)';      break;
+                case 'TIMEOUT':      stateColor = 'var(--watermelon)';   break;
+                case 'ERROR':        stateColor = 'var(--watermelon)';   break;
+                default:             stateColor = 'var(--text-muted)';   break;
+            }
+            var heapColor = data.min_free_heap < 20000 ? 'var(--watermelon)'
+                          : data.min_free_heap < 40000 ? 'var(--warning)'
+                          : 'inherit';
+
             const list = document.getElementById('sysinfo-list');
             list.innerHTML =
+                '<li><span class="label">State</span> <span class="value" style="color:' + stateColor + ';font-weight:700;">' + escapeHtml(data.system_state || '—') + '</span></li>' +
                 '<li><span class="label">Firmware</span> <span class="value">' + escapeHtml(data.firmware_version || '—') + '</span></li>' +
+                '<li><span class="label">SDK Version</span> <span class="value">' + escapeHtml(data.sdk_version || '—') + '</span></li>' +
                 '<li><span class="label">Chip Model</span> <span class="value">' + escapeHtml(data.chip_model) + ' (Rev ' + escapeHtml(data.chip_revision) + ')</span></li>' +
                 '<li><span class="label">CPU Freq</span> <span class="value">' + escapeHtml(data.cpu_freq) + ' MHz</span></li>' +
                 '<li><span class="label">RAM (Total)</span> <span class="value">' + formatBytes(data.heap_total) + '</span></li>' +
+                '<li><span class="label">Free Heap</span> <span class="value">' + formatBytes(data.free_heap) + '</span></li>' +
+                '<li><span class="label">Min Free Heap ▼</span> <span class="value" style="color:' + heapColor + '">' + formatBytes(data.min_free_heap) + '</span></li>' +
                 '<li><span class="label">Flash (Total)</span> <span class="value">' + formatBytes(data.flash_size) + '</span></li>' +
                 '<li><span class="label">Sketch Size</span> <span class="value">' + formatBytes(data.sketch_size) + '</span></li>' +
+                '<li><span class="label">Free Sketch Space</span> <span class="value">' + formatBytes(data.free_sketch_space) + '</span></li>' +
                 '<li><span class="label">Uptime</span> <span class="value value-uptime">' + formatTime(data.uptime) + '</span></li>';
 
             const netList = document.getElementById('netinfo-list');
@@ -985,10 +1003,19 @@ function updateSysInfo() {
                 '<li><span class="label">SSID</span> <span class="value">' + escapeHtml(data.ssid) + '</span></li>' +
                 '<li><span class="label">IP Address</span> <span class="value">' + escapeHtml(data.ip) + '</span></li>' +
                 '<li><span class="label">MAC Address</span> <span class="value">' + escapeHtml(data.mac) + '</span></li>' +
-                '<li><span class="label">Channel</span> <span class="value">' + escapeHtml(data.channel) + '</span></li>';
+                '<li><span class="label">Channel</span> <span class="value">' + escapeHtml(data.channel) + '</span></li>' +
+                '<li><span class="label">WS Clients</span> <span class="value">' + escapeHtml(data.ws_clients) + '</span></li>';
 
             if (data.mode === 'Station') {
-                netHTML += '<li><span class="label">Gateway</span> <span class="value">' + escapeHtml(data.gateway) + '</span></li>';
+                var rssiColor = data.rssi >= -50 ? 'var(--accent-color)'
+                              : data.rssi >= -70 ? 'inherit'
+                              : data.rssi >= -80 ? 'var(--warning)'
+                              : 'var(--watermelon)';
+                netHTML +=
+                    '<li><span class="label">Gateway</span> <span class="value">' + escapeHtml(data.gateway) + '</span></li>' +
+                    '<li><span class="label">Subnet Mask</span> <span class="value">' + escapeHtml(data.subnet) + '</span></li>' +
+                    '<li><span class="label">BSSID</span> <span class="value">' + escapeHtml(data.bssid) + '</span></li>' +
+                    '<li><span class="label">RSSI</span> <span class="value" style="color:' + rssiColor + '">' + escapeHtml(data.rssi) + ' dBm</span></li>';
             } else {
                 netHTML += '<li><span class="label">Clients</span> <span class="value">' + escapeHtml(data.clients) + '</span></li>';
             }
