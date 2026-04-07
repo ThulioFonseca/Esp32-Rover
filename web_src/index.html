@@ -445,6 +445,15 @@
                         <button onclick="saveNetworkSettings()" class="btn-primary" style="margin-top: 20px; width: 100%;">SAVE &amp; REBOOT</button>
                     </div>
 
+                    <!-- Channel Labels -->
+                    <div class="card" style="grid-column: 1 / -1;">
+                        <h3>Channel Labels</h3>
+                        <div id="channel-label-list"></div>
+                        <button id="channel-save-btn" class="btn-primary"
+                                style="display:none; margin-top: 12px; width: 100%;"
+                                onclick="saveChannelConfig()">SAVE &amp; REBOOT</button>
+                    </div>
+
                     <!-- System Logs Console -->
                     <div class="card" style="grid-column: 1 / -1;">
                         <div style="display:flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--header-border); padding-bottom: 12px; margin-bottom: 16px;">

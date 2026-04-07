@@ -19,6 +19,9 @@ struct PendingConfig {
   uint8_t wifiMode;
   char wifiSSID[33];  // max 32-char SSID + null — char[] avoids heap-allocated String across tasks
   char wifiPass[65];  // max 64-char passphrase + null
+  volatile bool channelConfigChange = false;
+  char channelNames[10][21];  // max 20 chars + null por canal
+  char channelColors[10][4];  // id "1"–"15" + null por canal
 };
 
 class TankController {

@@ -318,7 +318,14 @@ void WebServerManager::setupRoutes() {
         doc["wifi_mode"] = Config::WIFI_MODE;
         doc["sta_ssid"] = Config::STA_SSID;
         // Não enviamos a senha por segurança
-        
+
+        JsonArray chNames  = doc["channel_names"].to<JsonArray>();
+        JsonArray chColors = doc["channel_colors"].to<JsonArray>();
+        for (int i = 0; i < Config::CHANNEL_COUNT; i++) {
+            chNames.add(Config::CHANNEL_NAMES[i]);
+            chColors.add(Config::CHANNEL_COLORS[i]);
+        }
+
         String response;
         serializeJson(doc, response);
         request->send(200, "application/json", response);
@@ -367,6 +374,22 @@ void WebServerManager::setupRoutes() {
             pendingConfig.wifiSSID[sizeof(pendingConfig.wifiSSID) - 1] = '\0';
             strncpy(pendingConfig.wifiPass, reqPass.c_str(), sizeof(pendingConfig.wifiPass) - 1);
             pendingConfig.wifiPass[sizeof(pendingConfig.wifiPass) - 1] = '\0';
+            requiresReboot = true;
+        }
+
+        if (!doc["channel_names"].isNull() || !doc["channel_colors"].isNull()) {
+            pendingConfig.channelConfigChange = true;
+            for (int i = 0; i < Config::CHANNEL_COUNT; i++) {
+                String name  = doc["channel_names"][i]  | Config::CHANNEL_NAMES[i];
+                String color = doc["channel_colors"][i] | Config::CHANNEL_COLORS[i];
+                name.trim();
+                if (name.length() == 0) name = "CH " + String(i + 1);
+                if (name.length() > 20)  name = name.substring(0, 20);
+                strncpy(pendingConfig.channelNames[i],  name.c_str(),  20);
+                pendingConfig.channelNames[i][20] = '\0';
+                strncpy(pendingConfig.channelColors[i], color.c_str(), 3);
+                pendingConfig.channelColors[i][3] = '\0';
+            }
             requiresReboot = true;
         }
 

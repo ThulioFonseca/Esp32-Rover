@@ -33,6 +33,8 @@ RTC_NOINIT_ATTR struct {
     uint8_t  wifiMode;
     char     ssid[33];
     char     pass[65];
+    char     channelNames[10][21];
+    char     channelColors[10][4];
 } pendingNvsRtc;
 
 static const uint32_t RTC_NVS_MAGIC = 0xC0FFEE42;
@@ -124,6 +126,10 @@ void setup() {
         Config::WIFI_MODE     = pendingNvsRtc.wifiMode;
         Config::STA_SSID      = String(pendingNvsRtc.ssid);
         Config::STA_PASS      = String(pendingNvsRtc.pass);
+        for (int i = 0; i < Config::CHANNEL_COUNT; i++) {
+            Config::CHANNEL_NAMES[i]  = String(pendingNvsRtc.channelNames[i]);
+            Config::CHANNEL_COLORS[i] = String(pendingNvsRtc.channelColors[i]);
+        }
         Config::savePreferences();
         tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Config pendente aplicada e salva no NVS");
     }
@@ -200,6 +206,13 @@ void loop() {
         //    NVS será gravado no setup() do próximo boot, sem nenhuma task rodando.
         if (pendingNvsSave) {
             pendingNvsSave = false;
+            if (pendingConfig.channelConfigChange) {
+                pendingConfig.channelConfigChange = false;
+                for (int i = 0; i < Config::CHANNEL_COUNT; i++) {
+                    Config::CHANNEL_NAMES[i]  = String(pendingConfig.channelNames[i]);
+                    Config::CHANNEL_COLORS[i] = String(pendingConfig.channelColors[i]);
+                }
+            }
             pendingNvsRtc.debugEnabled = Config::DEBUG_ENABLED;
             pendingNvsRtc.darkTheme    = Config::DARK_THEME;
             pendingNvsRtc.wifiMode     = Config::WIFI_MODE;
@@ -207,6 +220,12 @@ void loop() {
             pendingNvsRtc.ssid[sizeof(pendingNvsRtc.ssid) - 1] = '\0';
             strncpy(pendingNvsRtc.pass, Config::STA_PASS.c_str(), sizeof(pendingNvsRtc.pass) - 1);
             pendingNvsRtc.pass[sizeof(pendingNvsRtc.pass) - 1] = '\0';
+            for (int i = 0; i < Config::CHANNEL_COUNT; i++) {
+                strncpy(pendingNvsRtc.channelNames[i],  Config::CHANNEL_NAMES[i].c_str(),  20);
+                pendingNvsRtc.channelNames[i][20] = '\0';
+                strncpy(pendingNvsRtc.channelColors[i], Config::CHANNEL_COLORS[i].c_str(), 3);
+                pendingNvsRtc.channelColors[i][3] = '\0';
+            }
             pendingNvsRtc.magic = RTC_NVS_MAGIC;
         }
 

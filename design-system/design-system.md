@@ -84,16 +84,25 @@ The system is **fully token-based** via CSS Custom Properties. All colors, spaci
 
 #### Chart Series Palette (Sensors Tab — multi-variable line charts)
 
-6 tokens (`--chart-color-1` … `--chart-color-6`) defined in `:root` and `[data-theme="dark"]`. Colors 1–4 reuse semantic tokens; 5–6 are dedicated chart additions.
+15 tokens (`--chart-color-1` … `--chart-color-15`) defined in `:root` and `[data-theme="dark"]`. Colors 1–4 reuse semantic tokens; 5–15 are dedicated chart additions. Used for multi-variable sensor charts and channel color assignments.
 
 | Token | Light (Field Command) | Dark (Phantom Ops) |
 |-------|-----------------------|--------------------|
-| `--chart-color-1` | `#0055aa` — sapphire blue | `#00b8e6` — cyan |
-| `--chart-color-2` | `#c41828` — watermelon red | `#ff2040` — bright red |
-| `--chart-color-3` | `#c87800` — amber | `#00ff9d` — neon green |
-| `--chart-color-4` | `#b06000` — dark amber | `#ffb300` — amber |
-| `--chart-color-5` | `#1a7a4a` — military green (**new**) | `#c084fc` — neon purple (**new**) |
-| `--chart-color-6` | `#6b21a8` — deep purple (**new**) | `#fb923c` — neon orange (**new**) |
+| `--chart-color-1`  | `#0055aa` — sapphire blue           | `#00b8e6` — cyan                  |
+| `--chart-color-2`  | `#c41828` — watermelon red          | `#ff2040` — bright red            |
+| `--chart-color-3`  | `#c87800` — amber                   | `#00ff9d` — neon green            |
+| `--chart-color-4`  | `#b06000` — dark amber              | `#ffb300` — amber                 |
+| `--chart-color-5`  | `#1a7a4a` — military green          | `#c084fc` — neon purple           |
+| `--chart-color-6`  | `#6b21a8` — deep purple             | `#fb923c` — neon orange           |
+| `--chart-color-7`  | `#0a7878` — deep teal               | `#00e5d4` — electric teal         |
+| `--chart-color-8`  | `#c05010` — burnt orange            | `#ff7048` — neon coral            |
+| `--chart-color-9`  | `#7a7800` — military olive          | `#dfff00` — neon yellow           |
+| `--chart-color-10` | `#1a6aa0` — steel blue              | `#60a8ff` — periwinkle            |
+| `--chart-color-11` | `#8c1068` — deep magenta            | `#ff40c8` — hot pink              |
+| `--chart-color-12` | `#3a7200` — forest lime             | `#80ff40` — neon lime             |
+| `--chart-color-13` | `#8a6000` — military gold           | `#ffd040` — bright gold           |
+| `--chart-color-14` | `#780820` — deep maroon             | `#ff6080` — soft crimson          |
+| `--chart-color-15` | `#4a1890` — deep violet             | `#9860ff` — electric violet       |
 
 RGB companion vars (`--chart-color-5-rgb`, `--chart-color-6-rgb`) are provided for `rgba()` usage. The existing `--accent-rgb`, `--watermelon-rgb`, and `--sapphire` cover colors 1–4.
 

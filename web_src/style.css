@@ -42,13 +42,22 @@
     --black: var(--base-bg);
     --neon-chartreuse: var(--accent-color);
 
-    /* Chart series palette — multi-variable sensor line charts */
+    /* Chart series palette — multi-variable sensor line charts and channel color assignments */
     --chart-color-1: #0055aa;
     --chart-color-2: #c41828;
     --chart-color-3: #c87800;
     --chart-color-4: #b06000;
     --chart-color-5: #1a7a4a;
     --chart-color-6: #6b21a8;
+    --chart-color-7: #0a7878;
+    --chart-color-8: #c05010;
+    --chart-color-9: #7a7800;
+    --chart-color-10: #1a6aa0;
+    --chart-color-11: #8c1068;
+    --chart-color-12: #3a7200;
+    --chart-color-13: #8a6000;
+    --chart-color-14: #780820;
+    --chart-color-15: #4a1890;
     --chart-color-5-rgb: 26, 122, 74;
     --chart-color-6-rgb: 107, 33, 168;
 }
@@ -87,13 +96,22 @@
     --black: var(--base-bg);
     --neon-chartreuse: var(--accent-color);
 
-    /* Chart series palette — multi-variable sensor line charts */
+    /* Chart series palette — multi-variable sensor line charts and channel color assignments */
     --chart-color-1: #00b8e6;
     --chart-color-2: #ff2040;
     --chart-color-3: #00ff9d;
     --chart-color-4: #ffb300;
     --chart-color-5: #c084fc;
     --chart-color-6: #fb923c;
+    --chart-color-7: #00e5d4;
+    --chart-color-8: #ff7048;
+    --chart-color-9: #dfff00;
+    --chart-color-10: #60a8ff;
+    --chart-color-11: #ff40c8;
+    --chart-color-12: #80ff40;
+    --chart-color-13: #ffd040;
+    --chart-color-14: #ff6080;
+    --chart-color-15: #9860ff;
     --chart-color-5-rgb: 192, 132, 252;
     --chart-color-6-rgb: 251, 146, 60;
 }
@@ -475,8 +493,52 @@ li span.value {
     background: rgba(var(--accent-rgb), 0.3);
     pointer-events: none;
 }
-/* Throttle (CH1=idx0) and Steering (CH3=idx2) use sapphire */
-#ch-0, #ch-2 { background: var(--sapphire); box-shadow: 0 0 8px rgba(0, 180, 216, 0.4); }
+/* ─── CHANNEL LABEL CONFIG ───────────────────────────────────────────────────── */
+
+#channel-label-list .sensor-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--list-border);
+    flex-wrap: wrap;
+}
+#channel-label-list .sensor-row:last-child { border-bottom: none; }
+
+.ch-num-label {
+    font-family: 'Rajdhani', 'Arial Narrow', Arial, sans-serif;
+    font-size: 0.72rem;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    min-width: 32px;
+    flex-shrink: 0;
+}
+.ch-name-input {
+    flex: 1;
+    min-width: 80px;
+    max-width: 140px;
+}
+.ch-color-swatches {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.ch-color-swatch {
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--card-border);
+    border-radius: 0;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    padding: 0;
+}
+.ch-color-swatch.selected {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 6px rgba(var(--accent-rgb), 0.8);
+}
 
 /* ─── SWITCH TOGGLE ───────────────────────────────────────────────────────────── */
 

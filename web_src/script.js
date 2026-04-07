@@ -250,6 +250,28 @@ const DOM = {
 let wsLatestFrame = null;
 let rafId = null;
 
+// ─── CHANNEL LABELS & COLORS ──────────────────────────────────────────────
+const CHANNEL_COLOR_PALETTE = [
+    { id: '1',  cssVar: 'var(--chart-color-1)'  },
+    { id: '2',  cssVar: 'var(--chart-color-2)'  },
+    { id: '3',  cssVar: 'var(--chart-color-3)'  },
+    { id: '4',  cssVar: 'var(--chart-color-4)'  },
+    { id: '5',  cssVar: 'var(--chart-color-5)'  },
+    { id: '6',  cssVar: 'var(--chart-color-6)'  },
+    { id: '7',  cssVar: 'var(--chart-color-7)'  },
+    { id: '8',  cssVar: 'var(--chart-color-8)'  },
+    { id: '9',  cssVar: 'var(--chart-color-9)'  },
+    { id: '10', cssVar: 'var(--chart-color-10)' },
+    { id: '11', cssVar: 'var(--chart-color-11)' },
+    { id: '12', cssVar: 'var(--chart-color-12)' },
+    { id: '13', cssVar: 'var(--chart-color-13)' },
+    { id: '14', cssVar: 'var(--chart-color-14)' },
+    { id: '15', cssVar: 'var(--chart-color-15)' },
+];
+let channelLabels = Array.from({length: 10}, function(_, i) { return 'CH ' + (i + 1); });
+let channelColors = ['1','2','3','4','5','6','7','8','9','10'];
+let channelLabelsDirty = false;
+
 // ─── GPS MINI-MAP ──────────────────────────────────────────────────────────
 const MINIMAP_TRACK_MAX  = 200;    // max points in circular track buffer
 const MINIMAP_MIN_RADIUS = 0.003;  // ~330m minimum view radius in degrees
@@ -893,8 +915,11 @@ function updateRadioFromData(d) {
     if (container.innerHTML === 'Loading...' || container.innerHTML === '') {
         container.innerHTML = '<div class="ch-grid">' +
             d.raw_channels.map(function(val, i) {
-                return '<div class="channel-group"><label>CH ' + (i+1) + '</label>' +
-                    '<div class="channel-row"><div class="progress-bar"><div id="ch-' + i + '" class="fill" style="width:50%"></div></div>' +
+                var label = channelLabels[i] || ('CH ' + (i + 1));
+                var color = 'var(--chart-color-' + (channelColors[i] || '1') + ')';
+                return '<div class="channel-group"><label>' + escapeHtml(label) + '</label>' +
+                    '<div class="channel-row"><div class="progress-bar">' +
+                    '<div id="ch-' + i + '" class="fill" style="width:50%;background:' + color + '"></div></div>' +
                     '<span class="val" id="val-' + i + '">' + parseInt(val) + '</span></div></div>';
             }).join('') + '</div>';
 
@@ -906,9 +931,12 @@ function updateRadioFromData(d) {
 
     d.raw_channels.forEach(function(val, i) {
         if(DOM.channels[i]) {
-            let pct = ((val - 1000) / 1000) * 100;
+            var pct = ((val - 1000) / 1000) * 100;
             pct = Math.max(0, Math.min(100, pct));
-            if(DOM.channels[i].bar) DOM.channels[i].bar.style.width = pct + '%';
+            if(DOM.channels[i].bar) {
+                DOM.channels[i].bar.style.width = pct + '%';
+                DOM.channels[i].bar.style.background = 'var(--chart-color-' + (channelColors[i] || '1') + ')';
+            }
             if(DOM.channels[i].val) DOM.channels[i].val.innerText = val;
         }
     });
@@ -956,6 +984,78 @@ function updateSysInfo() {
         .catch(function() {});
 }
 
+function buildChannelLabelRows() {
+    var list = document.getElementById('channel-label-list');
+    if (!list) return;
+    var html = '';
+    for (var i = 0; i < 10; i++) {
+        var swatches = CHANNEL_COLOR_PALETTE.map(function(c) {
+            var sel = channelColors[i] === c.id ? ' selected' : '';
+            return '<button class="ch-color-swatch' + sel + '" ' +
+                   'data-ch="' + i + '" data-color-id="' + c.id + '" ' +
+                   'style="background:' + c.cssVar + '" ' +
+                   'title="Color ' + c.id + '"></button>';
+        }).join('');
+        html += '<div class="sensor-row">' +
+            '<span class="ch-num-label">CH ' + (i + 1) + '</span>' +
+            '<input class="ch-name-input custom-input" ' +
+                   'data-ch="' + i + '" ' +
+                   'data-default="CH ' + (i + 1) + '" ' +
+                   'maxlength="20" ' +
+                   'value="' + escapeHtml(channelLabels[i]) + '">' +
+            '<div class="ch-color-swatches">' + swatches + '</div>' +
+            '</div>';
+    }
+    list.innerHTML = html;
+
+    // Wire change events after injection
+    list.querySelectorAll('.ch-name-input').forEach(function(input) {
+        input.addEventListener('input', function() {
+            var ch = parseInt(this.dataset.ch);
+            channelLabels[ch] = this.value;
+            channelLabelsDirty = true;
+            var btn = document.getElementById('channel-save-btn');
+            if (btn) btn.style.display = '';
+        });
+    });
+    list.querySelectorAll('.ch-color-swatch').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            var ch = parseInt(this.dataset.ch);
+            var colorId = this.dataset.colorId;
+            channelColors[ch] = colorId;
+            channelLabelsDirty = true;
+            // Update selected state within this channel's swatches
+            var siblings = list.querySelectorAll('.ch-color-swatch[data-ch="' + ch + '"]');
+            siblings.forEach(function(s) {
+                s.classList.toggle('selected', s.dataset.colorId === colorId);
+            });
+            var saveBtn = document.getElementById('channel-save-btn');
+            if (saveBtn) saveBtn.style.display = '';
+        });
+    });
+}
+
+function saveChannelConfig() {
+    var names = Array.from(document.querySelectorAll('.ch-name-input')).map(function(el) {
+        return el.value.trim() || el.dataset['default'];
+    });
+    fetchWithTimeout('/api/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ channel_names: names, channel_colors: channelColors.slice() })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d.status === 'rebooting') {
+            var saveBtn = document.getElementById('channel-save-btn');
+            if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Rebooting...'; }
+            alert('Channel labels saved. Rover is rebooting to apply changes.');
+            setTimeout(function() { location.reload(); }, 5000);
+        }
+    })
+    .catch(function() {});
+}
+
 function loadSettings() {
     fetchWithTimeout('/api/settings')
     .then(function(r) { return r.json(); })
@@ -987,6 +1087,13 @@ function loadSettings() {
             toggleWifiFields();
         }
         if(staSsid && d.sta_ssid) staSsid.value = d.sta_ssid;
+
+        if (d.channel_names && Array.isArray(d.channel_names))  channelLabels = d.channel_names;
+        if (d.channel_colors && Array.isArray(d.channel_colors)) channelColors = d.channel_colors;
+        channelLabelsDirty = false;
+        // Reset radio grid so updateRadioFromData() rebuilds it with new labels/colors
+        if (DOM.channelsContainer) DOM.channelsContainer.innerHTML = '';
+        buildChannelLabelRows();
 
         // Carrega Google Fonts apenas em modo STA (internet disponível).
         // Em modo AP o rover não tem acesso externo, usamos as fontes de fallback do CSS.

@@ -34,6 +34,11 @@ namespace Config {
   extern String STA_SSID;
   extern String STA_PASS;
 
+  // Nomes e cores dos canais iBUS (Persistentes via NVS)
+  constexpr int CHANNEL_COUNT = 10;
+  extern String CHANNEL_NAMES[CHANNEL_COUNT];   // ex: "CH 1" … "CH 10" (max 20 chars)
+  extern String CHANNEL_COLORS[CHANNEL_COUNT];  // id de cor: "1"…"15" (índice chart-color)
+
   // Função para carregar preferências do NVS
   void loadPreferences();
 

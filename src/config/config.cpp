@@ -12,6 +12,9 @@ namespace Config {
   String STA_SSID = "";
   String STA_PASS = "";
 
+  String CHANNEL_NAMES[CHANNEL_COUNT]  = {"CH 1","CH 2","CH 3","CH 4","CH 5","CH 6","CH 7","CH 8","CH 9","CH 10"};
+  String CHANNEL_COLORS[CHANNEL_COUNT] = {"1","2","3","4","5","6","7","8","9","10"};
+
   Preferences preferences;
 
   void loadPreferences() {
@@ -26,6 +29,13 @@ namespace Config {
     STA_PASS = preferences.getString("sta_pass", "");
     DEBUG_ENABLED = preferences.getBool("debug", false);
     DARK_THEME = preferences.getBool("dark_theme", true);
+    for (int i = 0; i < CHANNEL_COUNT; i++) {
+      char keyN[6], keyC[6];
+      snprintf(keyN, sizeof(keyN), "ch%dn", i);
+      snprintf(keyC, sizeof(keyC), "ch%dc", i);
+      CHANNEL_NAMES[i]  = preferences.getString(keyN, CHANNEL_NAMES[i]);
+      CHANNEL_COLORS[i] = preferences.getString(keyC, CHANNEL_COLORS[i]);
+    }
     preferences.end();
   }
 
@@ -38,6 +48,13 @@ namespace Config {
     preferences.putUChar("wifi_mode", WIFI_MODE);
     preferences.putString("sta_ssid", STA_SSID);
     preferences.putString("sta_pass", STA_PASS);
+    for (int i = 0; i < CHANNEL_COUNT; i++) {
+      char keyN[6], keyC[6];
+      snprintf(keyN, sizeof(keyN), "ch%dn", i);
+      snprintf(keyC, sizeof(keyC), "ch%dc", i);
+      preferences.putString(keyN, CHANNEL_NAMES[i]);
+      preferences.putString(keyC, CHANNEL_COLORS[i]);
+    }
     preferences.end();
   }
 }
