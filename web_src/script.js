@@ -24,7 +24,11 @@ class SensorChart {
         this.count = 0;
         this.visible = seriesConfig.map(function() { return true; });
         var self = this;
-        this._ro = new ResizeObserver(function() { self._resize(); });
+        this._resizeTimer = null;
+        this._ro = new ResizeObserver(function() {
+            clearTimeout(self._resizeTimer);
+            self._resizeTimer = setTimeout(function() { self._resize(); }, 100);
+        });
         this._ro.observe(canvas.parentElement);
         this._resize();
     }
@@ -688,12 +692,18 @@ function connectWebSocket() {
 // packet_type=0x01: sensor frame. Após parse, reutiliza handleWsSensorData().
 
 function parseBinaryFrame(buf) {
-    if (buf.byteLength < 121) return;
+    if (buf.byteLength < 122) return;
     const v = new DataView(buf);
     const f32 = function(o) { return v.getFloat32(o, true); };
     const u32 = function(o) { return v.getUint32(o, true); };
     const i16 = function(o) { return v.getInt16(o, true); };
     const u8  = function(o) { return v.getUint8(o); };
+
+    // CRC8 (XOR) — valida integridade do frame antes de processar
+    var crc = 0;
+    var bytes = new Uint8Array(buf);
+    for (var i = 0; i < 121; i++) crc ^= bytes[i];
+    if (crc !== bytes[121]) return; // frame corrompido — descartado silenciosamente
 
     if (u8(0) !== 0x01) return; // tipo desconhecido
 
@@ -958,11 +968,20 @@ function updateRadioFromData(d) {
 // ─── Funções HTTP (baixa frequência — sysinfo, settings, logs) ───────────────
 
 // Wrapper com timeout de 5s para todos os fetch() — evita hang indefinido se o ESP32 não responder.
+// Retry automático 1x após 200ms se o servidor retornar 503 (mutex contention).
 function fetchWithTimeout(url, options) {
-    var controller = new AbortController();
-    var timer = setTimeout(function() { controller.abort(); }, 5000);
-    var opts = Object.assign({}, options || {}, { signal: controller.signal });
-    return fetch(url, opts).finally(function() { clearTimeout(timer); });
+    function doFetch() {
+        var controller = new AbortController();
+        var timer = setTimeout(function() { controller.abort(); }, 5000);
+        var opts = Object.assign({}, options || {}, { signal: controller.signal });
+        return fetch(url, opts).finally(function() { clearTimeout(timer); });
+    }
+    return doFetch().then(function(response) {
+        if (response.status === 503) {
+            return new Promise(function(resolve) { setTimeout(resolve, 200); }).then(doFetch);
+        }
+        return response;
+    });
 }
 
 function updateSysInfo() {

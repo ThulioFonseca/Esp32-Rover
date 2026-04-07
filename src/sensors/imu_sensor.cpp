@@ -138,19 +138,38 @@ void ImuSensor::readSensorData() {
         return (int16_t)((hi << 8) | lo);
     };
 
-    data.accelX = toInt16(buf[0],  buf[1])  / ACCEL_SENS;
-    data.accelY = toInt16(buf[2],  buf[3])  / ACCEL_SENS;
-    data.accelZ = toInt16(buf[4],  buf[5])  / ACCEL_SENS;
+    float ax = toInt16(buf[0],  buf[1])  / ACCEL_SENS;
+    float ay = toInt16(buf[2],  buf[3])  / ACCEL_SENS;
+    float az = toInt16(buf[4],  buf[5])  / ACCEL_SENS;
+    float gx = toInt16(buf[8],  buf[9])  / GYRO_SENS;
+    float gy = toInt16(buf[10], buf[11]) / GYRO_SENS;
+    float gz = toInt16(buf[12], buf[13]) / GYRO_SENS;
+
+    // Validação de bounds: rejeita leituras I2C corrompidas que excedem range físico
+    // Accel configurado ±4g, gyro ±500°/s — margem de 10% para picos legítimos
+    static constexpr float ACCEL_MAX = 4.4f;   // g
+    static constexpr float GYRO_MAX  = 550.0f;  // °/s
+    if (fabsf(ax) > ACCEL_MAX || fabsf(ay) > ACCEL_MAX || fabsf(az) > ACCEL_MAX ||
+        fabsf(gx) > GYRO_MAX  || fabsf(gy) > GYRO_MAX  || fabsf(gz) > GYRO_MAX) {
+        errorCount++;
+        if (errorCount == Config::I2C_SENSOR_ERROR_THRESHOLD) {
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR,
+                "MPU-6500 dados fora do range físico (a:%.1f/%.1f/%.1f g:%.0f/%.0f/%.0f) — dados inválidos",
+                ax, ay, az, gx, gy, gz);
+            data.isValid = false;
+        }
+        return; // mantém dados anteriores válidos
+    }
+
+    data.accelX = ax;
+    data.accelY = ay;
+    data.accelZ = az;
+    data.gyroX  = gx;
+    data.gyroY  = gy;
+    data.gyroZ  = gz;
 
     // Temperatura: TEMP_OUT / 321.0 + 21.0 (MPU-6500 datasheet §4.16)
     data.temperature = toInt16(buf[6], buf[7]) / TEMP_SENS + TEMP_OFF;
-
-    // Giroscópio: converte raw → deg/s
-    data.gyroX = toInt16(buf[8],  buf[9])  / GYRO_SENS;
-    data.gyroY = toInt16(buf[10], buf[11]) / GYRO_SENS;
-    data.gyroZ = toInt16(buf[12], buf[13]) / GYRO_SENS;
-
-    // MPU-6500 não tem magnetômetro — campos mag permanecem em 0.0
 
     data.isValid    = true;
     data.lastUpdate = millis();

@@ -9,6 +9,7 @@
 #include "../sensors/compass_sensor.h"
 #include "../debug/debug_manager.h"
 #include "freertos/semphr.h"
+#include <atomic>
 
 struct PendingConfig {
   volatile bool hasChanges = false;
@@ -33,7 +34,7 @@ private:
   CompassSensor compassSensor;
 
   Types::SystemState currentState;
-  volatile bool systemArmed;
+  std::atomic<bool> systemArmed;
 
   // Mutex que protege os snapshots de sensores — nunca seguro durante I2C.
   // sensorUpdateTask (Core 1) escreve snapshots após leitura I2C.
@@ -51,15 +52,22 @@ private:
   static constexpr uint16_t I2C_RECOVERY_THRESHOLD = 10; // ~200ms a 50Hz antes de tentar recovery
   void recoverI2CBus();
 
+  // ERROR state recovery
+  unsigned long errorRecoveryTimer;
+  uint8_t       errorRecoveryAttempts;
+  static constexpr unsigned long ERROR_RECOVERY_INTERVAL_MS = 10000; // 10s entre tentativas
+  static constexpr uint8_t      ERROR_MAX_RECOVERY_ATTEMPTS = 3;
+  void attemptErrorRecovery();
+
   // Sensor fault counting (for LED indication)
   volatile uint8_t sensorFaultCount;
 
   template<typename T>
   T snapshotUnderMutex(const T& src) const {
       T copy{};
-      // 2ms timeout: sensorMutex is held only for a struct copy (microseconds),
+      // 5ms timeout: sensorMutex is held only for a struct copy (microseconds),
       // so this effectively never waits while still being race-free.
-      if (sensorMutex != NULL && xSemaphoreTake(sensorMutex, pdMS_TO_TICKS(2)) == pdTRUE) {
+      if (sensorMutex != NULL && xSemaphoreTake(sensorMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
           copy = src;
           xSemaphoreGive(sensorMutex);
       }

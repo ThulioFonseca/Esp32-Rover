@@ -9,6 +9,7 @@
 TankController::TankController()
     : currentState(Types::INITIALIZING), systemArmed(false),
       sensorMutex(NULL), i2cConsecutiveErrors(0), recoveryAttempts(0),
+      errorRecoveryTimer(0), errorRecoveryAttempts(0),
       sensorFaultCount(0) {}
 
 bool TankController::initialize() {
@@ -90,7 +91,10 @@ void TankController::update() {
     switch (currentState) {
         case Types::ARMED:   updateSystem();               break;
         case Types::TIMEOUT: handleTimeout();              break;
-        case Types::ERROR:   motorController.setNeutral(); break;
+        case Types::ERROR:
+            motorController.setNeutral();
+            attemptErrorRecovery();
+            break;
         default:                                           break;
     }
 
@@ -111,7 +115,7 @@ void TankController::update() {
                 default:                  stateStr = "?";       break;
             }
             debugManager.logSerial(DebugManager::LOG_LEVEL_DEBUG,
-                "[HB] %s | armed:%d | heap:%u", stateStr, systemArmed, ESP.getFreeHeap());
+                "[HB] %s | armed:%d | heap:%u", stateStr, systemArmed.load(), ESP.getFreeHeap());
         }
     }
 }
@@ -121,8 +125,8 @@ void TankController::setDebugMode(bool enabled) {
 }
 
 void TankController::setSystemArmed(bool armed) {
-    systemArmed = armed;
-    if (!systemArmed) {
+    systemArmed.store(armed);
+    if (!armed) {
         motorController.setNeutral();
     }
 }
@@ -158,8 +162,11 @@ void TankController::updateSensors() {
             recoverI2CBus();
             i2cConsecutiveErrors = 0;
         }
-    } else {
-        i2cConsecutiveErrors = 0;
+    } else if (i2cConsecutiveErrors > 0) {
+        // Decaimento gradual: uma leitura bem-sucedida reduz o contador em 1
+        // em vez de resetar para 0. Evita oscilação entre normal/recovery quando
+        // o sensor falha intermitentemente (ex: 4 de cada 5 leituras falhando).
+        i2cConsecutiveErrors--;
     }
 }
 
@@ -180,7 +187,7 @@ Types::SystemState TankController::getSystemState() const {
 }
 
 bool TankController::isSystemArmed() const {
-    return systemArmed;
+    return systemArmed.load();
 }
 
 uint8_t TankController::getSensorFaultCount() const {
@@ -206,6 +213,12 @@ void TankController::recoverI2CBus() {
     {
         bool imuSoftOk     = !Config::IMU_ENABLED || imuSensor.softReset();
         bool compassSoftOk = compassSensor.softReset();
+
+        if (!imuSoftOk || !compassSoftOk) {
+            debugManager.logf(DebugManager::LOG_LEVEL_WARN,
+                "Soft-reset falhou (imu=%d compass=%d) — escalando para GPIO bit-bang",
+                imuSoftOk, compassSoftOk);
+        }
 
         if (imuSoftOk && compassSoftOk) {
             vTaskDelay(pdMS_TO_TICKS(200)); // aguarda reset interno dos sensores
@@ -293,17 +306,51 @@ void TankController::recoverI2CBus() {
 
     // ── Nível 2: Espera longa — sensores precisam de power cycle ────────────
     // ESP.restart() NÃO corta VDD dos sensores — é ineficaz quando eles estão
-    // em estado de brownout. Em vez disso, aguarda 30s sem atividade no barramento
-    // para que a tensão se estabilize e os sensores possam se recuperar sozinhos.
-    // Se isso ainda falhar, o usuário deve fazer um power cycle manual (desligar USB).
+    // em estado de brownout. Aguarda 30s fragmentados para não bloquear GPS.
     if (recoveryAttempts >= 3) {
         debugManager.logf(DebugManager::LOG_LEVEL_ERROR,
-            "Barramento I2C irrecuperável após %d tentativas de software. "
-            "Aguardando 30s sem atividade — se o problema persistir, faça power cycle (desconectar/reconectar USB).",
+            "Barramento I2C irrecuperável após %d tentativas. "
+            "Sensores I2C desabilitados — faça power cycle para restaurar.",
             recoveryAttempts);
-        Wire.setTimeOut(Config::I2C_NORMAL_TIMEOUT_MS); // restaura timeout antes da espera
-        vTaskDelay(pdMS_TO_TICKS(30000));
-        recoveryAttempts = 0; // permite novas tentativas após a espera
+        Wire.setTimeOut(Config::I2C_NORMAL_TIMEOUT_MS);
+        // Não reseta recoveryAttempts — desiste de recovery.
+        // GPS continua funcional (usa UART, não I2C).
+    }
+}
+
+void TankController::attemptErrorRecovery() {
+    unsigned long now = millis();
+    if (errorRecoveryAttempts >= ERROR_MAX_RECOVERY_ATTEMPTS) {
+        return; // desistiu — aguardando reboot manual
+    }
+    if (now - errorRecoveryTimer < ERROR_RECOVERY_INTERVAL_MS) {
+        return; // aguardando cooldown
+    }
+    errorRecoveryTimer = now;
+    errorRecoveryAttempts++;
+
+    debugManager.logf(DebugManager::LOG_LEVEL_WARN,
+        "Tentativa de recuperação do estado ERROR (%d/%d)",
+        errorRecoveryAttempts, ERROR_MAX_RECOVERY_ATTEMPTS);
+
+    // Re-inicializa componentes críticos
+    bool channelOk = channelManager.initialize();
+    bool motorOk   = motorController.initialize();
+
+    if (channelOk && motorOk) {
+        motorController.performArmingSequence();
+        currentState = Types::ARMED;
+        errorRecoveryAttempts = 0;
+        debugManager.logf(DebugManager::LOG_LEVEL_INFO,
+            "Recuperação do estado ERROR bem-sucedida — sistema ARMED");
+    } else {
+        debugManager.logf(DebugManager::LOG_LEVEL_ERROR,
+            "Recuperação falhou (ch=%d motor=%d) — próxima tentativa em %lus",
+            channelOk, motorOk, ERROR_RECOVERY_INTERVAL_MS / 1000);
+        if (errorRecoveryAttempts >= ERROR_MAX_RECOVERY_ATTEMPTS) {
+            debugManager.logf(DebugManager::LOG_LEVEL_ERROR,
+                "Máximo de tentativas de recuperação atingido — reboot manual necessário");
+        }
     }
 }
 
@@ -323,7 +370,7 @@ void TankController::handleTimeout() {
 void TankController::processControls() {
     const Types::ChannelData& channels = channelManager.getChannelData();
 
-    if (systemArmed) {
+    if (systemArmed.load()) {
         motorController.update(channels.nThrottle, channels.nSteering);
     } else {
         motorController.setNeutral();

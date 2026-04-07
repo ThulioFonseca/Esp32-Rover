@@ -62,7 +62,9 @@ bool WebServerManager::begin() {
         if (WiFi.status() == WL_CONNECTED) {
             tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Conectado com sucesso! IP do Rover: %s", WiFi.localIP().toString().c_str());
         } else {
-            tankController.debugManager.logf(DebugManager::LOG_LEVEL_WARN, "Falha ao conectar. Retornando para Modo AP de segurança.");
+            tankController.debugManager.logf(DebugManager::LOG_LEVEL_WARN,
+                "WiFi STA falhou após %d tentativas (SSID: %s). Fallback para AP mode — não é o modo configurado!",
+                attempts, Config::STA_SSID.c_str());
             Config::WIFI_MODE = 0; // Fallback temporário em memória (não salva no NVS para não sobrescrever a config do usuário)
         }
     }
@@ -195,7 +197,7 @@ void WebServerManager::setupRoutes() {
             request->send(503, "application/json", "{\"error\":\"system not ready\"}");
             return;
         }
-        if (xSemaphoreTake(tankMutex, 0) == pdTRUE) {
+        if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(2)) == pdTRUE) {
             snapshot = tankController.getChannelData();
             xSemaphoreGive(tankMutex);
         } else {
@@ -259,7 +261,7 @@ void WebServerManager::setupRoutes() {
             request->send(503, "application/json", "{\"error\":\"system not ready\"}");
             return;
         }
-        if (xSemaphoreTake(tankMutex, 0) == pdTRUE) {
+        if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(2)) == pdTRUE) {
             imuSnapshot = tankController.getImuData();
             gpsSnapshot = tankController.getGpsData();
             compassSnapshot = tankController.getCompassData();
@@ -455,8 +457,17 @@ void WebServerManager::onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *c
                                   AwsEventType type, void *arg, uint8_t *data, size_t len) {
     switch (type) {
         case WS_EVT_CONNECT:
+            if (ws.count() > Config::MAX_WS_CLIENTS) {
+                tankController.debugManager.logf(DebugManager::LOG_LEVEL_WARN,
+                    "WS cliente #%u rejeitado — limite de %d clientes atingido",
+                    client->id(), Config::MAX_WS_CLIENTS);
+                client->close(1013, "max clients reached");
+                return;
+            }
             tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO,
-                "WS cliente #%u conectado de %s", client->id(), client->remoteIP().toString().c_str());
+                "WS cliente #%u conectado de %s (%u/%d)",
+                client->id(), client->remoteIP().toString().c_str(),
+                ws.count(), Config::MAX_WS_CLIENTS);
             break;
 
         case WS_EVT_DISCONNECT:
@@ -478,6 +489,7 @@ void WebServerManager::onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *c
         }
 
         case WS_EVT_PONG:
+        case WS_EVT_PING:
         case WS_EVT_ERROR:
             break;
     }
@@ -513,7 +525,7 @@ void WebServerManager::broadcastSensorData() {
     Types::ChannelData   channels;
     bool                 armed = false;
 
-    if (xSemaphoreTake(tankMutex, 0) != pdTRUE) {
+    if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(1)) != pdTRUE) {
         return;
     }
 
@@ -577,7 +589,15 @@ void WebServerManager::broadcastSensorData() {
     writeU8(armed ? 1 : 0);
     writeU32(millis());
 
-    // ── 3. Envia como frame binário WebSocket ──
-    // p - wsBinaryBuffer deve ser exatamente 121 bytes
+    // ── 3. CRC8 para integridade do frame ──
+    // XOR de todos os bytes — simples e suficiente para detectar bit flips em WiFi
+    {
+        uint8_t crc = 0;
+        size_t dataLen = (size_t)(p - wsBinaryBuffer);
+        for (size_t i = 0; i < dataLen; i++) crc ^= wsBinaryBuffer[i];
+        writeU8(crc);
+    }
+
+    // ── 4. Envia como frame binário WebSocket ──
     ws.binaryAll(wsBinaryBuffer, (size_t)(p - wsBinaryBuffer));
 }

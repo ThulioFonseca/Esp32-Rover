@@ -15,8 +15,9 @@ namespace Config {
   constexpr int ESC_DEAD_HIGH = 1582;
   constexpr int ESC_NEUTRAL = (ESC_DEAD_LOW + ESC_DEAD_HIGH) / 2;
   
-  // Zona morta do stick
-  constexpr int STICK_DEADZONE = 10;
+  // Zona morta do stick (µs ao redor do centro 1500)
+  // Jitter típico de RC é 15-30µs — valor baixo demais causa drift de controle
+  constexpr int STICK_DEADZONE = 25;
   
   // Timeouts e intervalos
   extern unsigned long IBUS_TIMEOUT_MS;
@@ -27,7 +28,8 @@ namespace Config {
   constexpr int           TANK_MUTEX_TIMEOUT_MS = 5;    // Timeout do try-lock no tankControlTask
 
   // WebSocket
-  constexpr size_t WS_BINARY_FRAME_SIZE = 121; // Tamanho fixo do frame binário (ver broadcastSensorData)
+  constexpr size_t WS_BINARY_FRAME_SIZE = 122; // Tamanho fixo do frame binário (121 dados + 1 CRC8)
+  constexpr uint8_t MAX_WS_CLIENTS = 4;        // Limite de clientes simultâneos (~2-4KB heap cada)
 
   // Configurações de Rede (Persistentes via NVS)
   extern uint8_t WIFI_MODE; // 0 = AP, 1 = STA
@@ -58,7 +60,7 @@ namespace Config {
 
   // I2C — barramento único compartilhado (pinos 21/22)
   constexpr uint32_t I2C_FREQ_HZ = 100000; // Standard Mode (100 kHz) — mais robusto a variações de VDD e temperatura; latência aceitável para sensores de navegação
-  constexpr uint16_t I2C_SENSOR_ERROR_THRESHOLD = 5; // Erros consecutivos antes de recovery
+  constexpr uint16_t I2C_SENSOR_ERROR_THRESHOLD = 10; // Erros consecutivos antes de recovery (margem para glitches EMI)
 
   // Timeouts do barramento I2C por transação
   constexpr int I2C_NORMAL_TIMEOUT_MS   = 50; // Operação normal — margem para sensores lentos

@@ -36,8 +36,9 @@ public:
   size_t writeLogsToBuffer(char* buf, size_t bufSize);
   void clearLogs();
 
-  static const int MAX_LOG_LINES   = 30;
-  static const int MAX_LOG_LINE_LEN = 128; // tamanho máximo por linha de log
+  static const int MAX_LOG_LINES    = 30;
+  static const int MAX_LOG_LINE_LEN = 160; // tamanho máximo por linha de log (prefixo ~21 + mensagem)
+  static const int MAX_MSG_LEN      = 128; // tamanho do buffer de formatação da mensagem (sem prefixo)
 
 private:
   float _prevNThrottle;

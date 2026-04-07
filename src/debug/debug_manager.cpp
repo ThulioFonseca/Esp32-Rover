@@ -3,7 +3,7 @@
 #include "../utils/platform.h"
 #include <Arduino.h>
 
-DebugManager::DebugManager() : isEnabled(false), logHead(0), logTail(0), logCount(0), serialMutex(NULL), _prevNThrottle(0.0f), _prevNSteering(0.0f) {}
+DebugManager::DebugManager() : isEnabled(false), _prevNThrottle(0.0f), _prevNSteering(0.0f), logHead(0), logTail(0), logCount(0), serialMutex(NULL) {}
 
 void DebugManager::initialize() {
   if (serialMutex == NULL) {
@@ -13,7 +13,7 @@ void DebugManager::initialize() {
 }
 
 void DebugManager::logf(LogLevel level, const char* format, ...) {
-  char msgBuf[192];
+  char msgBuf[MAX_MSG_LEN];
   va_list args;
   va_start(args, format);
   vsnprintf(msgBuf, sizeof(msgBuf), format, args);
@@ -37,7 +37,7 @@ void DebugManager::logf(LogLevel level, const char* format, ...) {
            (s / 3600), ((s % 3600) / 60), (s % 60), levelStr, msgBuf);
 
   // Mutex protege Serial E o buffer circular (evita race condition entre cores)
-  if (serialMutex != NULL && xSemaphoreTake(serialMutex, 0) == pdTRUE) {
+  if (serialMutex != NULL && xSemaphoreTake(serialMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
     if (isEnabled) {
       ets_printf("%s\n", finalMsg);
     }
@@ -114,7 +114,7 @@ void DebugManager::clearLogs() {
 void DebugManager::logSerial(LogLevel level, const char* format, ...) {
   if (!isEnabled) return;
 
-  char msgBuf[192];
+  char msgBuf[MAX_MSG_LEN];
   va_list args;
   va_start(args, format);
   vsnprintf(msgBuf, sizeof(msgBuf), format, args);

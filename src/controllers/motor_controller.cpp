@@ -3,6 +3,7 @@
 #include "../config/pins.h"
 #include "../utils/utils.h"
 #include <Arduino.h>
+#include <cmath>
 
 MotorController::MotorController() : isInitialized(false) {}
 
@@ -27,9 +28,17 @@ void MotorController::update(float throttle, float steering) {
 }
 
 // Tank mixing: left = throttle + steering, right = throttle - steering.
+// Deadband de saída: comandos muito pequenos são zerados para evitar motor twitch
+// causado por ruído residual do transmissor RC após a deadzone de input.
+static constexpr float MOTOR_OUTPUT_DEADBAND = 0.03f;
+
 void MotorController::calculateMotorCommands(float throttle, float steering) {
     commands.left  = throttle + steering;
     commands.right = throttle - steering;
+
+    // Zera comandos individuais abaixo do deadband de saída
+    if (fabsf(commands.left)  < MOTOR_OUTPUT_DEADBAND) commands.left  = 0.0f;
+    if (fabsf(commands.right) < MOTOR_OUTPUT_DEADBAND) commands.right = 0.0f;
 }
 
 // Mantém os comandos em [-1.0, 1.0] preservando a relação proporcional entre eles.

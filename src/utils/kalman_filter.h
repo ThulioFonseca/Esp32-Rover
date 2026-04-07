@@ -31,7 +31,8 @@ public:
         kp += kq;                       // predição: covariância cresce com a incerteza do processo
         float gain = kp / (kp + kr);   // ganho de Kalman (0=ignora medição, 1=ignora predição)
         kx    += gain * (z - kx);      // correção pelo resíduo
-        kp    *= (1.0f - gain);        // covariância pós-atualização
+        kp    = kp * (1.0f - gain);     // covariância pós-atualização
+        if (kp < 1e-6f) kp = 1e-6f;   // previne covariância negativa por erro de ponto flutuante
         return kx;
     }
 

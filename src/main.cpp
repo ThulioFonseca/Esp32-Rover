@@ -76,12 +76,31 @@ void tankControlTask(void* pvParameters) {
             xSemaphoreGive(tankMutex);
         }
 
-        // Log de watermark de stack a cada ~30s para detectar overflow silencioso
+        // Monitoramento de saúde a cada ~30s (1500 × 20ms = 30s)
         if (++watermarkTick >= 1500) {
             watermarkTick = 0;
+
+            // Stack watermark — alerta se < 20% do stack alocado
             UBaseType_t wm = uxTaskGetStackHighWaterMark(NULL);
-            tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO,
-                "[WDT] TankControlTask stack min livre: %u words", wm);
+            static constexpr UBaseType_t STACK_WARNING_THRESHOLD = 8192 / 4 * 20 / 100; // 20% de 8192 bytes (words)
+            if (wm < STACK_WARNING_THRESHOLD) {
+                tankController.debugManager.logf(DebugManager::LOG_LEVEL_WARN,
+                    "[MON] Stack BAIXO! TankControlTask: %u words livres (limiar: %u)", wm, STACK_WARNING_THRESHOLD);
+            } else {
+                tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO,
+                    "[MON] TankControlTask stack min livre: %u words", wm);
+            }
+
+            // Heap monitoring — alerta se livre < 20KB, log degradação < 10KB
+            uint32_t freeHeap = ESP.getFreeHeap();
+            uint32_t minFreeHeap = ESP.getMinFreeHeap();
+            if (minFreeHeap < 10000) {
+                tankController.debugManager.logf(DebugManager::LOG_LEVEL_ERROR,
+                    "[MON] Heap CRITICO! livre:%u min:%u — risco de OOM", freeHeap, minFreeHeap);
+            } else if (minFreeHeap < 20000) {
+                tankController.debugManager.logf(DebugManager::LOG_LEVEL_WARN,
+                    "[MON] Heap baixo: livre:%u min:%u", freeHeap, minFreeHeap);
+            }
         }
     }
 }

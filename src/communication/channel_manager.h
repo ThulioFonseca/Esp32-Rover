@@ -8,7 +8,7 @@ class ChannelManager {
 private:
   IBusBM ibus;
   Types::ChannelData channelData;
-  unsigned long lastUpdateTime;
+  volatile unsigned long lastUpdateTime;
   bool isInitialized;
 
 public:

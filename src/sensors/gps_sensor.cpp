@@ -29,42 +29,35 @@ void GpsSensor::update() {
     }
 
     if (newData) {
-        // Se a localização é válida
+        // Atualiza campos individuais quando disponíveis
         if (gps.location.isValid()) {
-            data.latitude = gps.location.lat();
+            data.latitude  = gps.location.lat();
             data.longitude = gps.location.lng();
-            data.isValid = true;
-            lastValidTime = millis();
         }
 
-        // Se a altitude é válida
         if (gps.altitude.isValid()) {
             data.altitude = gps.altitude.meters();
         }
 
-        // Se a velocidade é válida
         if (gps.speed.isValid()) {
             data.speed = gps.speed.kmph();
         }
 
-        // Se o curso (heading) é válido
         if (gps.course.isValid()) {
             data.course = gps.course.deg();
         }
 
-        // Satélites
         if (gps.satellites.isValid()) {
             data.satellites = gps.satellites.value();
         }
 
-        // HDOP
         if (gps.hdop.isValid()) {
             data.hdop = gps.hdop.value();
         }
 
-        // Data e hora
         if (gps.time.isValid()) {
-            int hour = (int)gps.time.hour() + Config::GPS_TIMEZONE_OFFSET_HOURS;
+            int8_t tzOffset = Config::GPS_TIMEZONE_OFFSET_HOURS;
+            int hour = (int)gps.time.hour() + tzOffset;
             if (hour < 0)  hour += 24;
             if (hour > 23) hour -= 24;
             data.timeHour   = (uint8_t)hour;
@@ -75,10 +68,25 @@ void GpsSensor::update() {
             formatDateTime(data.dateTime, sizeof(data.dateTime));
         }
 
+        // Validação de qualidade composta: exige localização + satélites + HDOP aceitável
+        // HDOP raw do TinyGPSPlus é value()*100, então 500 = HDOP 5.0
+        bool hasLocation   = gps.location.isValid();
+        bool hasEnoughSats = gps.satellites.isValid() && data.satellites >= 4;
+        bool hasGoodHdop   = gps.hdop.isValid() && data.hdop < 500;
+
+        if (hasLocation && hasEnoughSats && hasGoodHdop) {
+            data.isValid = true;
+            lastValidTime = millis();
+        } else if (hasLocation) {
+            // Localização disponível mas qualidade insuficiente — mantém dados mas não marca válido
+            // Permite que a UI mostre posição aproximada sem confiar nela para navegação
+            lastValidTime = millis();
+        }
+
         data.lastUpdate = millis();
     }
-    
-    // Invalida o GPS se não tivermos informações válidas de localização nos últimos 3 segundos
+
+    // Invalida se sem fix de qualidade por mais de 3 segundos
     if (data.isValid && (millis() - lastValidTime > 3000)) {
         data.isValid = false;
     }

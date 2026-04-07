@@ -16,13 +16,13 @@ bool ChannelManager::initialize() {
 void ChannelManager::update() {
     if (!isInitialized) return;
 
-    updateChannelData();
-
-    // Sincroniza isValid com o estado de timeout para que isDataValid()
-    // reflita corretamente a perda de sinal após o primeiro dado recebido.
+    // Verifica timeout ANTES de atualizar dados para eliminar janela de inconsistência
+    // onde isValid poderia ser true momentaneamente durante uma perda real de sinal.
     if (hasTimeout()) {
         channelData.isValid = false;
     }
+
+    updateChannelData();
 }
 
 void ChannelManager::updateChannelData() {
