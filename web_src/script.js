@@ -203,6 +203,12 @@ function refreshChartColors() {
             if (cfgDefs[i]) chart.series[i].color = _cssColor(cfgDefs[i].colorVar);
         }
     }
+    // Update channel chart colors
+    if (channelChart) {
+        for (var i = 0; i < channelChart.series.length; i++) {
+            channelChart.series[i].color = _cssColor('--chart-color-' + (channelColors[i] || '1'));
+        }
+    }
 }
 
 // ─── DOM CACHE LAYER ──────────────────────────────────────────────────────────
@@ -271,6 +277,7 @@ const CHANNEL_COLOR_PALETTE = [
 let channelLabels = Array.from({length: 10}, function(_, i) { return 'CH ' + (i + 1); });
 let channelColors = ['1','2','3','4','5','6','7','8','9','10'];
 let channelLabelsDirty = false;
+var channelChart = null; // SensorChart instance for the Radio tab
 
 // ─── GPS MINI-MAP ──────────────────────────────────────────────────────────
 const MINIMAP_TRACK_MAX  = 200;    // max points in circular track buffer
@@ -595,6 +602,7 @@ function startRenderLoop() {
             }
             if (document.getElementById('radio').classList.contains('active')) {
                 updateRadioFromData(frame._channelData);
+                if (channelChart) channelChart.render();
             }
 
             // Armed status sync (leve, independe de aba)
@@ -940,6 +948,11 @@ function updateRadioFromData(d) {
             if(DOM.channels[i].val) DOM.channels[i].val.innerText = val;
         }
     });
+
+    // Push to chart if valid and visible
+    if (d.valid && channelChart && !document.getElementById('chart-channels').hidden) {
+        channelChart.push(d.raw_channels);
+    }
 }
 
 // ─── Funções HTTP (baixa frequência — sysinfo, settings, logs) ───────────────
@@ -1056,6 +1069,53 @@ function saveChannelConfig() {
     .catch(function() {});
 }
 
+function initChannelChart() {
+    var canvas = document.getElementById('canvas-channels');
+    if (!canvas) return;
+    if (channelChart) { channelChart.destroy(); channelChart = null; }
+
+    var series = channelColors.map(function(colorId, i) {
+        return {
+            label: channelLabels[i] || ('CH ' + (i + 1)),
+            color: _cssColor('--chart-color-' + colorId),
+            colorVar: '--chart-color-' + colorId
+        };
+    });
+    channelChart = new SensorChart(canvas, series);
+
+    // Wire toggle button
+    var btn = document.getElementById('chart-toggle-channels');
+    var container = document.getElementById('chart-channels');
+    if (btn && container) {
+        // Remove previous listener by cloning
+        var newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+        newBtn.addEventListener('click', function() {
+            var open = newBtn.getAttribute('aria-pressed') === 'true';
+            newBtn.setAttribute('aria-pressed', open ? 'false' : 'true');
+            container.hidden = open;
+            if (!open) channelChart._resize();
+        });
+    }
+
+    // Build legend
+    var legend = document.getElementById('legend-channels');
+    if (legend) {
+        legend.innerHTML = channelColors.map(function(colorId, i) {
+            var label = escapeHtml(channelLabels[i] || ('CH ' + (i + 1)));
+            return '<span class="chart-legend-item" data-series="' + i + '" ' +
+                   'style="--swatch: var(--chart-color-' + colorId + ')">' + label + '</span>';
+        }).join('');
+        legend.querySelectorAll('.chart-legend-item').forEach(function(item) {
+            item.addEventListener('click', function() {
+                var idx = parseInt(item.getAttribute('data-series'), 10);
+                item.classList.toggle('inactive');
+                channelChart.setVisible(idx, !item.classList.contains('inactive'));
+            });
+        });
+    }
+}
+
 function loadSettings() {
     fetchWithTimeout('/api/settings')
     .then(function(r) { return r.json(); })
@@ -1094,6 +1154,7 @@ function loadSettings() {
         // Reset radio grid so updateRadioFromData() rebuilds it with new labels/colors
         if (DOM.channelsContainer) DOM.channelsContainer.innerHTML = '';
         buildChannelLabelRows();
+        initChannelChart();
 
         // Carrega Google Fonts apenas em modo STA (internet disponível).
         // Em modo AP o rover não tem acesso externo, usamos as fontes de fallback do CSS.

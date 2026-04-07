@@ -252,8 +252,15 @@
             <div id="radio" class="tab-content">
                 <div class="dashboard-grid" style="grid-template-columns: 1fr;">
                     <div class="card">
-                        <h3>Receiver Channels</h3>
+                        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--header-border); padding-bottom:12px; margin-bottom:16px;">
+                            <h3 style="border:none; padding:0; margin:0; border-left:none; letter-spacing:3px;">Receiver Channels</h3>
+                            <button class="btn-chart-toggle" id="chart-toggle-channels" aria-pressed="false">&#9660; GRAPH</button>
+                        </div>
                         <div id="all-channels">Loading...</div>
+                        <div class="sensor-chart-container" id="chart-channels" hidden>
+                            <canvas class="sensor-chart" id="canvas-channels"></canvas>
+                            <div class="chart-legend" id="legend-channels"></div>
+                        </div>
                     </div>
                 </div>
             </div>
