@@ -8,7 +8,8 @@
 
 TankController::TankController()
     : currentState(Types::INITIALIZING), systemArmed(false),
-      sensorMutex(NULL), i2cConsecutiveErrors(0), recoveryAttempts(0) {}
+      sensorMutex(NULL), i2cConsecutiveErrors(0), recoveryAttempts(0),
+      sensorFaultCount(0) {}
 
 bool TankController::initialize() {
     debugManager.logf(DebugManager::LOG_LEVEL_INFO, "=== Inicializando TankController ===");
@@ -140,6 +141,13 @@ void TankController::updateSensors() {
         xSemaphoreGive(sensorMutex);
     }
 
+    // 2b. Contar sensores em falha — leitura direta dos objetos (já atualizados neste ciclo)
+    uint8_t faults = 0;
+    if (Config::IMU_ENABLED     && !imuSensor.getData().isValid)     faults++;
+    if (                            !compassSensor.getData().isValid) faults++;
+    if (Config::GPS_ENABLED     && !gpsSensor.getData().isValid)     faults++;
+    sensorFaultCount = faults;  // escrita atômica (uint8_t, Core 1 exclusivo)
+
     // 3. Verifica saúde do barramento I2C — recovery se necessário
     bool imuFailing     = Config::IMU_ENABLED && imuSensor.needsReinit();
     bool compassFailing = compassSensor.needsReinit();
@@ -173,6 +181,10 @@ Types::SystemState TankController::getSystemState() const {
 
 bool TankController::isSystemArmed() const {
     return systemArmed;
+}
+
+uint8_t TankController::getSensorFaultCount() const {
+    return sensorFaultCount;
 }
 
 String TankController::getSystemLogs() {

@@ -6,7 +6,8 @@
 enum LedStatus {
     LED_STATUS_OFF,
     LED_STATUS_OPERATIONAL, // Heartbeat (curto, pausa longa)
-    LED_STATUS_WARNING,     // Duas piscadas curtas, pausa
+    LED_STATUS_WARNING,     // AP mode — piscada lenta
+    LED_STATUS_FAULT,       // N piscadas rápidas (sensor faults)
     LED_STATUS_ERROR        // Pisca rápido contínuo
 };
 
@@ -18,11 +19,13 @@ private:
     int stateStep;
     bool ledState;
     bool initialized;
+    uint8_t faultBlinkCount;
 
 public:
     StatusLedManager(uint8_t ledPin);
     void begin();
     void setStatus(LedStatus status);
+    void setFaultCount(uint8_t count);
     void update();
 };
 

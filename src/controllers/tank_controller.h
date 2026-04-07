@@ -51,6 +51,9 @@ private:
   static constexpr uint16_t I2C_RECOVERY_THRESHOLD = 10; // ~200ms a 50Hz antes de tentar recovery
   void recoverI2CBus();
 
+  // Sensor fault counting (for LED indication)
+  volatile uint8_t sensorFaultCount;
+
   template<typename T>
   T snapshotUnderMutex(const T& src) const {
       T copy{};
@@ -84,6 +87,7 @@ public:
 
   Types::SystemState          getSystemState()    const;
   bool                        isSystemArmed()     const;
+  uint8_t                     getSensorFaultCount() const;
 
   String getSystemLogs(); // Retorna o buffer circular de logs
   void clearSystemLogs();

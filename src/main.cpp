@@ -63,6 +63,14 @@ void tankControlTask(void* pvParameters) {
 
         statusLed.update();
 
+        // Atualiza status do LED com base em falhas de sensor (leitura atômica, sem mutex)
+        uint8_t faults = tankController.getSensorFaultCount();
+        if (faults > 0) {
+            statusLed.setFaultCount(faults);
+        } else {
+            statusLed.setStatus(Config::WIFI_MODE == 0 ? LED_STATUS_WARNING : LED_STATUS_OPERATIONAL);
+        }
+
         if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(Config::TANK_MUTEX_TIMEOUT_MS)) == pdTRUE) {
             tankController.update();
             xSemaphoreGive(tankMutex);
