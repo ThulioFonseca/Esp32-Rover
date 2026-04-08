@@ -150,8 +150,8 @@
                                     <line x1="103" y1="300" x2="117" y2="300" class="stroke-dim" stroke-width="1"/>
                                     <!-- Active fill (grows upward from y=400; dasharray D fills D px from bottom) -->
                                     <line x1="110" y1="450" x2="110" y2="250" class="stroke-main" stroke-width="3" id="arc-speed" stroke-dasharray="0 200" filter="url(#glow-green)"/>
-                                    <text x="85" y="348" class="center-text-readout" id="center-spd" text-anchor="end" font-size="31">0.0</text>
-                                    <text x="85" y="365" class="center-text-label" text-anchor="end" font-size="13" letter-spacing="2">KM/H</text>
+                                    <text x="85" y="348" class="center-text-readout" id="center-spd" text-anchor="end" font-size="42">0.0</text>
+                                    <text x="85" y="370" class="center-text-label" text-anchor="end" font-size="17" letter-spacing="2">KM/H</text>
 
                                     <!-- DIST BAR — 40 segmentos LED (5 cm/seg, 0–200 cm), gerados por JS -->
                                     <!-- Track fundo + cap marks + ticks de referência -->
@@ -166,8 +166,8 @@
                                     <!-- Container dos 40 segmentos (injetados no DOMContentLoaded) -->
                                     <g id="tof-bar-group"></g>
                                     <!-- Valor e label -->
-                                    <text x="503" y="348" class="center-text-readout" id="center-bat" text-anchor="start" font-size="31" style="fill: var(--accent-color);">DIST</text>
-                                    <text x="503" y="365" class="center-text-label" text-anchor="start" font-size="13" letter-spacing="2">cm</text>
+                                    <text x="520" y="348" class="center-text-readout" id="center-bat" text-anchor="start" font-size="42" style="fill: var(--accent-color);">DIST</text>
+                                    <text x="520" y="370" class="center-text-label" text-anchor="start" font-size="17" letter-spacing="2">cm</text>
 
                                     <g transform="translate(300, 330)">
                                         <circle cx="0" cy="0" r="3" fill="var(--danger)" />
@@ -201,7 +201,7 @@
                             </div>
 
                             <div class="side-panel panel-left">
-                                <div class="panel-header">DRIVE (TRACKS)</div>
+                                <div class="panel-header">DRIVE</div>
                                 <div class="motor-grid" style="grid-template-columns: 1fr;">
                                     <div><div class="data-row"><span class="data-label">LEFT</span><span class="data-value" id="hud-mot-l">0%</span></div><div class="bar-bg"><div class="bar-fill" id="hud-bar-mot-l"></div></div></div>
                                     <div><div class="data-row"><span class="data-label">RIGHT</span><span class="data-value" id="hud-mot-r">0%</span></div><div class="bar-bg"><div class="bar-fill" id="hud-bar-mot-r"></div></div></div>
