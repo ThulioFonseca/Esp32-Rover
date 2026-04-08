@@ -70,6 +70,15 @@ bool TankController::initialize() {
         debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "CompassSensor (HMC5883L, I2C 0x1E) não detectado — desabilitado até próximo reboot.");
     }
 
+    if (Config::TOF_ENABLED) {
+        debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Inicializando TofSensor (VL53L1X)...");
+        if (!tofSensor.initialize(&Wire, Pins::TOF_XSHUT)) {
+            debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "TofSensor (VL53L1X, I2C 0x%02X) não detectado — desabilitado até próximo reboot.", Config::TOF_I2C_ADDR);
+        } else {
+            debugManager.logf(DebugManager::LOG_LEVEL_INFO, "TofSensor inicializado.");
+        }
+    }
+
     debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Iniciando sequência de armamento...");
     currentState = Types::ARMING;
     motorController.performArmingSequence();
@@ -136,12 +145,14 @@ void TankController::updateSensors() {
     if (Config::IMU_ENABLED) imuSensor.update();
     if (Config::GPS_ENABLED) gpsSensor.update();
     compassSensor.update(); // Compass usa I2C independentemente do GPS
+    if (Config::TOF_ENABLED) tofSensor.update();
 
     // 2. Cópia atômica para snapshots — mutex breve (microsegundos)
     if (sensorMutex != NULL && xSemaphoreTake(sensorMutex, 0) == pdTRUE) {
         imuSnapshot     = imuSensor.getData();
         gpsSnapshot     = gpsSensor.getData();
         compassSnapshot = compassSensor.getData();
+        if (Config::TOF_ENABLED) tofSnapshot = tofSensor.getData();
         xSemaphoreGive(sensorMutex);
     }
 
@@ -150,13 +161,15 @@ void TankController::updateSensors() {
     if (Config::IMU_ENABLED     && !imuSensor.getData().isValid)     faults++;
     if (                            !compassSensor.getData().isValid) faults++;
     if (Config::GPS_ENABLED     && !gpsSensor.getData().isValid)     faults++;
+    if (Config::TOF_ENABLED     && !tofSensor.getData().isValid)     faults++;
     sensorFaultCount = faults;  // escrita atômica (uint8_t, Core 1 exclusivo)
 
     // 3. Verifica saúde do barramento I2C — recovery se necessário
     bool imuFailing     = Config::IMU_ENABLED && imuSensor.needsReinit();
     bool compassFailing = compassSensor.needsReinit();
+    bool tofFailing     = Config::TOF_ENABLED && tofSensor.needsReinit();
 
-    if (imuFailing || compassFailing) {
+    if (imuFailing || compassFailing || tofFailing) {
         i2cConsecutiveErrors++;
         if (i2cConsecutiveErrors >= I2C_RECOVERY_THRESHOLD) {
             recoverI2CBus();
@@ -181,6 +194,7 @@ const Types::MotorCommands& TankController::getMotorCommands() const {
 Types::ImuData     TankController::getImuData()     const { return snapshotUnderMutex(imuSnapshot); }
 Types::GpsData     TankController::getGpsData()     const { return snapshotUnderMutex(gpsSnapshot); }
 Types::CompassData TankController::getCompassData() const { return snapshotUnderMutex(compassSnapshot); }
+Types::TofData     TankController::getTofData()     const { return snapshotUnderMutex(tofSnapshot); }
 
 Types::SystemState TankController::getSystemState() const {
     return currentState;
@@ -213,20 +227,22 @@ void TankController::recoverI2CBus() {
     {
         bool imuSoftOk     = !Config::IMU_ENABLED || imuSensor.softReset();
         bool compassSoftOk = compassSensor.softReset();
+        bool tofSoftOk     = !Config::TOF_ENABLED || tofSensor.softReset();
 
-        if (!imuSoftOk || !compassSoftOk) {
+        if (!imuSoftOk || !compassSoftOk || !tofSoftOk) {
             debugManager.logf(DebugManager::LOG_LEVEL_WARN,
-                "Soft-reset falhou (imu=%d compass=%d) — escalando para GPIO bit-bang",
-                imuSoftOk, compassSoftOk);
+                "Soft-reset falhou (imu=%d compass=%d tof=%d) — escalando para GPIO bit-bang",
+                imuSoftOk, compassSoftOk, tofSoftOk);
         }
 
-        if (imuSoftOk && compassSoftOk) {
+        if (imuSoftOk && compassSoftOk && tofSoftOk) {
             vTaskDelay(pdMS_TO_TICKS(200)); // aguarda reset interno dos sensores
 
             bool imuOk     = !Config::IMU_ENABLED || imuSensor.initialize(&Wire);
             bool compassOk = compassSensor.initialize(&Wire);
+            bool tofOk     = !Config::TOF_ENABLED || tofSensor.initialize(&Wire, Pins::TOF_XSHUT);
 
-            if (imuOk && compassOk) {
+            if (imuOk && compassOk && tofOk) {
                 debugManager.logf(DebugManager::LOG_LEVEL_INFO,
                     "Recovery I2C (soft-reset) bem-sucedido na tentativa %d — sensores online",
                     recoveryAttempts + 1);
@@ -289,8 +305,9 @@ void TankController::recoverI2CBus() {
     // 5. Reinicializa sensores e verifica resultado
     bool imuOk     = !Config::IMU_ENABLED || imuSensor.initialize(&Wire);
     bool compassOk = compassSensor.initialize(&Wire);
+    bool tofOk     = !Config::TOF_ENABLED || tofSensor.initialize(&Wire, Pins::TOF_XSHUT);
 
-    if (imuOk && compassOk) {
+    if (imuOk && compassOk && tofOk) {
         debugManager.logf(DebugManager::LOG_LEVEL_INFO,
             "Recovery I2C (bit-bang) bem-sucedido na tentativa %d — sensores online",
             recoveryAttempts + 1);
@@ -301,6 +318,7 @@ void TankController::recoverI2CBus() {
 
     if (!imuOk)     debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "IMU ainda não responde (tentativa %d)", recoveryAttempts + 1);
     if (!compassOk) debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "Compass ainda não responde (tentativa %d)", recoveryAttempts + 1);
+    if (!tofOk)     debugManager.logf(DebugManager::LOG_LEVEL_ERROR, "TOF ainda não responde (tentativa %d)", recoveryAttempts + 1);
 
     recoveryAttempts++;
 

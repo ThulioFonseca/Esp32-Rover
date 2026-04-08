@@ -28,7 +28,7 @@ namespace Config {
   constexpr int           TANK_MUTEX_TIMEOUT_MS = 5;    // Timeout do try-lock no tankControlTask
 
   // WebSocket
-  constexpr size_t WS_BINARY_FRAME_SIZE = 122; // Tamanho fixo do frame binário (121 dados + 1 CRC8)
+  constexpr size_t WS_BINARY_FRAME_SIZE = 127; // Tamanho fixo do frame binário (126 dados + 1 CRC8; +5 bytes TOF)
   constexpr uint8_t MAX_WS_CLIENTS = 4;        // Limite de clientes simultâneos (~2-4KB heap cada)
 
   // Configurações de Rede (Persistentes via NVS)
@@ -78,6 +78,14 @@ namespace Config {
   constexpr unsigned long GPS_BAUD = 9600;
   constexpr int8_t GPS_TIMEZONE_OFFSET_HOURS = -3; // GMT-3 (Brasília)
   extern bool GPS_ENABLED;
+
+  // TOF (VL53L1X via I2C)
+  // Endereço 0x29 — sem conflito com IMU (0x68) ou Compass (0x1E)
+  constexpr uint8_t  TOF_I2C_ADDR             = 0x29;
+  constexpr uint32_t TOF_TIMING_BUDGET_US     = 50000; // 50ms → ~20Hz de leituras
+  constexpr uint16_t TOF_CONTINUOUS_PERIOD_MS = 50;    // período entre medições (ms)
+  constexpr float    TOF_MAX_RANGE_MM         = 4000.0f; // alcance máximo modo Long
+  extern bool TOF_ENABLED;
 }
 
 #endif

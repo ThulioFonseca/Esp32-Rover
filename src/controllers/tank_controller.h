@@ -7,6 +7,7 @@
 #include "../sensors/imu_sensor.h"
 #include "../sensors/gps_sensor.h"
 #include "../sensors/compass_sensor.h"
+#include "../sensors/tof_sensor.h"
 #include "../debug/debug_manager.h"
 #include "freertos/semphr.h"
 #include <atomic>
@@ -32,6 +33,7 @@ private:
   ImuSensor imuSensor;
   GpsSensor gpsSensor;
   CompassSensor compassSensor;
+  TofSensor tofSensor;
 
   Types::SystemState currentState;
   std::atomic<bool> systemArmed;
@@ -45,6 +47,7 @@ private:
   Types::ImuData     imuSnapshot;
   Types::GpsData     gpsSnapshot;
   Types::CompassData compassSnapshot;
+  Types::TofData     tofSnapshot;
 
   // I2C bus recovery
   uint16_t i2cConsecutiveErrors;
@@ -92,6 +95,7 @@ public:
   Types::ImuData     getImuData()     const;
   Types::GpsData     getGpsData()     const;
   Types::CompassData getCompassData() const;
+  Types::TofData     getTofData()     const;
 
   Types::SystemState          getSystemState()    const;
   bool                        isSystemArmed()     const;

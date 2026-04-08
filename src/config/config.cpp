@@ -7,6 +7,7 @@ namespace Config {
   bool DEBUG_ENABLED = false;
   bool IMU_ENABLED = true; // Controla se o sensor IMU deve ser inicializado
   bool GPS_ENABLED = true; // Controla se o GPS deve ser inicializado
+  bool TOF_ENABLED = true; // Controla se o sensor VL53L1X deve ser inicializado
 
   uint8_t WIFI_MODE = 0; // 0 = AP, 1 = STA
   String STA_SSID = "";
@@ -29,6 +30,7 @@ namespace Config {
     STA_PASS = preferences.getString("sta_pass", "");
     DEBUG_ENABLED = preferences.getBool("debug", false);
     DARK_THEME = preferences.getBool("dark_theme", true);
+    TOF_ENABLED = preferences.getBool("tof_en", true);
     for (int i = 0; i < CHANNEL_COUNT; i++) {
       char keyN[6], keyC[6];
       snprintf(keyN, sizeof(keyN), "ch%dn", i);
@@ -45,6 +47,7 @@ namespace Config {
     preferences.begin("rover", false);
     preferences.putBool("debug",      DEBUG_ENABLED);
     preferences.putBool("dark_theme", DARK_THEME);
+    preferences.putBool("tof_en",     TOF_ENABLED);
     preferences.putUChar("wifi_mode", WIFI_MODE);
     preferences.putString("sta_ssid", STA_SSID);
     preferences.putString("sta_pass", STA_PASS);

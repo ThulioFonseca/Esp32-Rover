@@ -20,9 +20,13 @@ namespace Pins {
   constexpr uint8_t BATTERY_VOLTAGE = 34;
   constexpr uint8_t TEMPERATURE = 35;
   
-  // I2C — barramento único compartilhado (IMU + Compass + sensores futuros)
+  // I2C — barramento único compartilhado (IMU + Compass + TOF + sensores futuros)
   constexpr uint8_t SDA = 21;
   constexpr uint8_t SCL = 22;
+
+  // TOF (VL53L1X) — GPIO 25 (livre, não conflita com ESC nem SPI)
+  // XSHUT é ativo-LOW: HIGH = sensor habilitado, LOW = power-down/reset HW
+  constexpr uint8_t TOF_XSHUT = 25;
   
   // SPI (futuro)
   // ATENÇÃO: GPIO 18 e 19 conflitam com ESC_RIGHT e ESC_LEFT!

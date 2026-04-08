@@ -36,4 +36,7 @@ namespace Types {
       speed(0.0f), course(0.0f), satellites(0), hdop(0.0f),
       dateTime{0}, timeHour(0), timeMinute(0), timeSecond(0),
       isValid(false), lastUpdate(0) {}
+
+  TofData::TofData()
+    : distanceMm(0.0f), isValid(false), lastUpdate(0) {}
 }

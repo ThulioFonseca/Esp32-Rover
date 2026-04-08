@@ -86,6 +86,14 @@ namespace Types {
     GpsData();
   };
 
+  struct TofData {
+    float distanceMm;    // distância filtrada pelo Kalman (mm)
+    bool  isValid;       // false até a primeira leitura válida ou após ERROR_THRESHOLD erros
+    unsigned long lastUpdate;
+
+    TofData();
+  };
+
   enum SystemState {
     INITIALIZING,
     ARMING,

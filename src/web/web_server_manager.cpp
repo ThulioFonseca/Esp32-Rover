@@ -521,6 +521,7 @@ void WebServerManager::broadcastSensorData() {
     Types::ImuData       imu;
     Types::GpsData       gps;
     Types::CompassData   compass;
+    Types::TofData       tof;
     Types::MotorCommands motors;
     Types::ChannelData   channels;
     bool                 armed = false;
@@ -532,6 +533,7 @@ void WebServerManager::broadcastSensorData() {
     imu      = tankController.getImuData();
     gps      = tankController.getGpsData();
     compass  = tankController.getCompassData();
+    tof      = tankController.getTofData();
     motors   = tankController.getMotorCommands();
     channels = tankController.getChannelData();
     armed    = tankController.isSystemArmed();
@@ -588,6 +590,10 @@ void WebServerManager::broadcastSensorData() {
     // System (5 bytes: offset 116–120)
     writeU8(armed ? 1 : 0);
     writeU32(millis());
+
+    // TOF (5 bytes: offset 121–125)
+    writeF32(tof.distanceMm);
+    writeU8(tof.isValid ? 1 : 0);
 
     // ── 3. CRC8 para integridade do frame ──
     // XOR de todos os bytes — simples e suficiente para detectar bit flips em WiFi

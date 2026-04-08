@@ -150,10 +150,14 @@ var SENSOR_CHART_CONFIGS = {
         { label: 'Course', colorVar: '--chart-color-3' },
         { label: 'Sats',   colorVar: '--chart-color-4' },
         { label: 'HDOP',   colorVar: '--chart-color-5' }
+    ],
+    tof: [
+        { label: 'Distance (cm)', colorVar: '--chart-color-1' }
     ]
 };
 
 var sensorCharts = {}; // { orientation: SensorChart, ... }
+var tofSegs = [];     // 40 SVGRectElement — barra TOF, gerados no DOMContentLoaded
 
 function initSensorCharts() {
     var ids = Object.keys(SENSOR_CHART_CONFIGS);
@@ -692,7 +696,7 @@ function connectWebSocket() {
 // packet_type=0x01: sensor frame. Após parse, reutiliza handleWsSensorData().
 
 function parseBinaryFrame(buf) {
-    if (buf.byteLength < 122) return;
+    if (buf.byteLength < 127) return;
     const v = new DataView(buf);
     const f32 = function(o) { return v.getFloat32(o, true); };
     const u32 = function(o) { return v.getUint32(o, true); };
@@ -702,8 +706,8 @@ function parseBinaryFrame(buf) {
     // CRC8 (XOR) — valida integridade do frame antes de processar
     var crc = 0;
     var bytes = new Uint8Array(buf);
-    for (var i = 0; i < 121; i++) crc ^= bytes[i];
-    if (crc !== bytes[121]) return; // frame corrompido — descartado silenciosamente
+    for (var i = 0; i < 126; i++) crc ^= bytes[i];
+    if (crc !== bytes[126]) return; // frame corrompido — descartado silenciosamente
 
     if (u8(0) !== 0x01) return; // tipo desconhecido
 
@@ -741,7 +745,8 @@ function parseBinaryFrame(buf) {
         ],
         cv:  u8(115) !== 0,
         arm: u8(116) !== 0,
-        up:  u32(117)
+        up:  u32(117),
+        tof: { v: u8(125) !== 0, d: f32(121) }
     };
 
     handleWsSensorData(d);
@@ -771,6 +776,7 @@ function handleWsSensorData(d) {
             y: parseFloat(d.cmp.y), z: parseFloat(d.cmp.z)
         },
         motors: { left: parseFloat(d.mot.l), right: parseFloat(d.mot.r) },
+        tof: { valid: d.tof.v, distanceMm: parseFloat(d.tof.d) },
         armed: d.arm
     };
 
@@ -901,6 +907,19 @@ function updateSensorsFromData(d) {
         }
     }
 
+    // ── TOF Distance ──
+    if (d.tof) {
+        var tofBadge = document.getElementById('tof-badge');
+        var tofDist  = document.getElementById('tof-dist');
+        if (d.tof.valid) {
+            if (tofBadge) { tofBadge.className = 'fix-badge fix-ok'; tofBadge.textContent = 'ONLINE'; }
+            if (tofDist)  tofDist.innerText = (d.tof.distanceMm / 10).toFixed(2);
+        } else {
+            if (tofBadge) { tofBadge.className = 'fix-badge'; tofBadge.textContent = 'OFFLINE'; }
+            if (tofDist)  tofDist.innerText = '--';
+        }
+    }
+
     // ── Push de dados para os gráficos (apenas se o container estiver visível) ──
     if (d.valid) {
         if (sensorCharts.orientation && !document.getElementById('chart-orientation').hidden)
@@ -921,6 +940,11 @@ function updateSensorsFromData(d) {
     if (d.gps && d.gps.valid) {
         if (sensorCharts.gps && !document.getElementById('chart-gps').hidden)
             sensorCharts.gps.push([d.gps.alt, d.gps.speed, d.gps.course, d.gps.satellites, d.gps.hdop]);
+    }
+
+    if (d.tof && d.tof.valid) {
+        if (sensorCharts.tof && !document.getElementById('chart-tof').hidden)
+            sensorCharts.tof.push([d.tof.distanceMm / 10]);
     }
 }
 
@@ -1595,6 +1619,31 @@ function updateHUD(data) {
     if(DOM.hudBarMotR) DOM.hudBarMotR.style.width = motR + '%';
     if(DOM.hudMotR)    DOM.hudMotR.innerText    = motR.toFixed(0) + '%';
 
+    // ── Barra TOF — 40 segmentos LED, 5 cm/seg, 0–200 cm ────────────────────
+    // Resposta linear direta: distCm → numLit = floor(distCm/5), máx 40.
+    // Paleta posicional: seg 0-7 verde (seguro), 8-15 âmbar, 16-39 vermelho (perigo).
+    var tofValid = data.tof && data.tof.valid;
+    var distCm   = tofValid ? (data.tof.distanceMm / 10) : 0;
+    var numLit   = tofValid ? Math.max(0, 40 - Math.floor(distCm / 5)) : 0;
+    for (var si = 0; si < tofSegs.length; si++) {
+        if (si < numLit) {
+            var segCol = si >= 36 ? 'var(--watermelon)' : si >= 28 ? 'var(--warning)' : 'var(--accent-color)';
+            tofSegs[si].setAttribute('fill',   segCol);
+            tofSegs[si].setAttribute('filter', si >= 36 ? 'url(#glow-warn)' : 'url(#glow-green)');
+        } else {
+            tofSegs[si].setAttribute('fill',   'rgba(255,255,255,0.06)');
+            tofSegs[si].setAttribute('filter', 'none');
+        }
+    }
+    var centerBat = document.getElementById('center-bat');
+    if (centerBat) {
+        var txtCol = !tofValid    ? 'var(--iron-grey)'  :
+                     numLit >= 36 ? 'var(--watermelon)' :
+                     numLit >= 28 ? 'var(--warning)'    : 'var(--accent-color)';
+        centerBat.textContent = tofValid ? distCm.toFixed(1) : 'DIST';
+        centerBat.style.fill  = txtCol;
+    }
+
     // Acelerômetro
     if(DOM.hudAccX) DOM.hudAccX.innerText = data.accel.x.toFixed(2);
     if(DOM.hudAccY) DOM.hudAccY.innerText = data.accel.y.toFixed(2);
@@ -1679,6 +1728,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // HUD SVG animated elements (populados aqui; compassTape pode ser null até initHUD)
     DOM.horizonGroup = document.getElementById('horizon-group');
+
+    // ── Gera 40 segmentos da barra TOF (5 cm cada, 0–200 cm) ─────────────────
+    // Segmento i=0 = fundo (objeto longe, 0-5 cm mostrado se barra estiver baixa)
+    // Segmento i=39 = topo (objeto perto do limite 200 cm)
+    // Cor por zona: i<8 → verde, 8≤i<16 → âmbar, i≥16 → vermelho (zona de perigo)
+    // Geometria: y = 450 − (i+1)×5, height=4 px, gap=1 px (5 px por segmento × 40 = 200 px)
+    var tofBarGroup = document.getElementById('tof-bar-group');
+    if (tofBarGroup) {
+        var svgNs = 'http://www.w3.org/2000/svg';
+        for (var ti = 0; ti < 40; ti++) {
+            var r = document.createElementNS(svgNs, 'rect');
+            r.setAttribute('x',      '484');
+            r.setAttribute('y',      String(450 - (ti + 1) * 5));
+            r.setAttribute('width',  '12');
+            r.setAttribute('height', '4');
+            r.setAttribute('fill',   'rgba(255,255,255,0.06)');
+            tofBarGroup.appendChild(r);
+            tofSegs.push(r);
+        }
+    }
 
     // Sensors Tab Elements
     DOM.imuRoll    = document.getElementById('imu-roll');
