@@ -1074,7 +1074,7 @@ input:checked + .slider:before {
     position: absolute; width: clamp(130px, 15vw, 190px);
     opacity: 0.92;
     background: rgba(2, 6, 4, 0.55);
-    border: 1px solid rgba(0, 232, 122, 0.1);
+    border: none;
     padding: 6px 8px;
     display: flex; flex-direction: column; gap: clamp(4px, 0.6vw, 6px); z-index: 20;
     text-shadow: var(--fpv-aberration);
