@@ -1040,8 +1040,8 @@ input:checked + .slider:before {
 .stroke-dim { stroke: var(--primary-dim); fill: none; stroke-width: 1; transition: stroke 0.2s; }
 .stroke-danger { stroke: var(--danger); fill: none; stroke-width: 2; }
 
-.center-text-readout { font-family: var(--font-mono); font-size: 14px; fill: var(--primary); font-weight: bold; text-shadow: 0 0 5px rgba(0,0,0,0.8); transition: fill 0.2s; }
-.center-text-label { font-family: var(--font-mono); font-size: 8px; fill: var(--text-dim); }
+.center-text-readout { font-family: var(--font-mono); fill: var(--primary); font-weight: bold; text-shadow: 0 0 5px rgba(0,0,0,0.8); transition: fill 0.2s; }
+.center-text-label { font-family: var(--font-mono); fill: var(--text-dim); }
 .compass-group { transform: translate(300px, 515px); }
 
 /* GPU acceleration hints for HUD animated elements (Fase 2) */
