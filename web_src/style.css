@@ -120,10 +120,6 @@
 
 * { box-sizing: border-box; }
 
-html {
-    overscroll-behavior: none;
-}
-
 body {
     font-family: 'Rajdhani', 'Arial Narrow', Arial, sans-serif;
     background-color: var(--base-bg);
@@ -131,7 +127,6 @@ body {
     margin: 0;
     padding: 0;
     -webkit-font-smoothing: antialiased;
-    overscroll-behavior: none;
     transition: background-color 0.4s ease, color 0.4s ease;
     /* Tactical grid overlay */
     background-image:
