@@ -232,20 +232,42 @@
                 </div>
 
                 <div class="map-frame">
-                    <div class="map-frame-bar">
-                        <span>SAT-NAV / POSITION TRACK</span>
-                        <span id="hud-gps-fix-badge" class="fix-badge">NO FIX</span>
-                    </div>
-                    <div class="map-viewport">
-                        <canvas id="hud-minimap"></canvas>
-                        <div class="minimap-zoom-ctrl">
-                            <button id="minimap-zoom-in"  class="minimap-zoom-btn">+</button>
-                            <button id="minimap-zoom-out" class="minimap-zoom-btn">&#x2212;</button>
-                            <div class="minimap-divider"></div>
-                            <button class="minimap-zoom-btn minimap-layer-btn active" id="map-btn-map">MAP</button>
-                            <button class="minimap-zoom-btn minimap-layer-btn" id="map-btn-sat">SAT</button>
+
+                    <!-- ─── FPV CAMERA (top 50%) ──────────────────────────── -->
+                    <div class="camera-frame">
+                        <div class="map-frame-bar">
+                            <span>FPV / LIVE FEED</span>
+                            <select id="fpv-device-select" class="fpv-device-select">
+                                <option value="">── SELECT CAMERA ──</option>
+                            </select>
+                        </div>
+                        <div class="camera-viewport">
+                            <video id="fpv-video" autoplay muted playsinline></video>
+                            <div id="fpv-no-signal" class="fpv-no-signal">
+                                <span id="fpv-msg-title">NO CAMERA DETECTED</span>
+                                <span id="fpv-msg-sub" class="fpv-msg-sub"></span>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- ─── MINI-MAP GPS (bottom 50%) ─────────────────────── -->
+                    <div class="minimap-frame">
+                        <div class="map-frame-bar">
+                            <span>SAT-NAV / POSITION TRACK</span>
+                            <span id="hud-gps-fix-badge" class="fix-badge">NO FIX</span>
+                        </div>
+                        <div class="map-viewport">
+                            <canvas id="hud-minimap"></canvas>
+                            <div class="minimap-zoom-ctrl">
+                                <button id="minimap-zoom-in"  class="minimap-zoom-btn">+</button>
+                                <button id="minimap-zoom-out" class="minimap-zoom-btn">&#x2212;</button>
+                                <div class="minimap-divider"></div>
+                                <button class="minimap-zoom-btn minimap-layer-btn active" id="map-btn-map">MAP</button>
+                                <button class="minimap-zoom-btn minimap-layer-btn" id="map-btn-sat">SAT</button>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
                 </div><!-- /.home-layout -->

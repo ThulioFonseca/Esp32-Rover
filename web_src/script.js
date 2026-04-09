@@ -299,6 +299,10 @@ let minimapLastValid = false;
 let minimapZoomDelta = 0;   // user zoom offset: -3 to +3
 let minimapSatMode   = false;
 
+// ─── FPV Camera ───────────────────────────────────────────────────────────────
+let fpvStream   = null;   // MediaStream ativo
+let fpvDeviceId = null;   // deviceId selecionado
+
 function latLngToTileXY(lat, lng, z) {
     const n = Math.pow(2, z);
     const x = Math.floor((lng + 180) / 360 * n);
@@ -1689,6 +1693,101 @@ function updateHUD(data) {
     }
 }
 
+// ─── FPV: enumerate video devices e preenche o seletor ───────────────────────
+
+async function fpvEnumerateDevices() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+    try {
+        var devices = await navigator.mediaDevices.enumerateDevices();
+        var videoDevices = devices.filter(function(d) { return d.kind === 'videoinput'; });
+        var sel = document.getElementById('fpv-device-select');
+        if (!sel) return;
+        var current = sel.value;
+        sel.innerHTML = '<option value="">── SELECT CAMERA ──</option>';
+        videoDevices.forEach(function(d, i) {
+            var opt = document.createElement('option');
+            opt.value = d.deviceId;
+            opt.textContent = d.label || ('CAMERA ' + (i + 1));
+            sel.appendChild(opt);
+        });
+        if (current) sel.value = current;
+        return videoDevices;
+    } catch(e) {
+        console.warn('[FPV] enumerateDevices error:', e);
+        return [];
+    }
+}
+
+// ─── FPV: inicia stream com o deviceId especificado ──────────────────────────
+
+function fpvShowError(title, sub) {
+    var noSig = document.getElementById('fpv-no-signal');
+    var titleEl = document.getElementById('fpv-msg-title');
+    var subEl   = document.getElementById('fpv-msg-sub');
+    if (titleEl) titleEl.textContent = title;
+    if (subEl)   subEl.textContent   = sub || '';
+    if (noSig)   noSig.classList.remove('hidden');
+}
+
+async function fpvStartCamera(deviceId) {
+    if (fpvStream) {
+        fpvStream.getTracks().forEach(function(t) { t.stop(); });
+        fpvStream = null;
+    }
+    var video = document.getElementById('fpv-video');
+    if (!video) return;
+
+    var constraints = { video: deviceId ? { deviceId: { exact: deviceId } } : true };
+    try {
+        fpvStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = fpvStream;
+        fpvDeviceId = deviceId;
+        var noSig = document.getElementById('fpv-no-signal');
+        if (noSig) noSig.classList.add('hidden');
+        // Re-enumerate para preencher labels (só disponíveis após permissão concedida)
+        await fpvEnumerateDevices();
+        var sel = document.getElementById('fpv-device-select');
+        if (sel && deviceId) sel.value = deviceId;
+    } catch(e) {
+        console.warn('[FPV] getUserMedia error:', e.name, e.message);
+        video.srcObject = null;
+        fpvStream = null;
+        if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+            fpvShowError('CAMERA ACCESS DENIED', 'Allow camera permission in the browser and reload.');
+        } else if (e.name === 'NotFoundError' || e.name === 'DevicesNotFoundError') {
+            fpvShowError('NO CAMERA DETECTED', '');
+        } else {
+            fpvShowError('CAMERA UNAVAILABLE', e.name);
+        }
+    }
+}
+
+// ─── FPV: inicialização ───────────────────────────────────────────────────────
+
+async function initFpv() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        // HTTP sem HTTPS: Chrome bloqueia a API em origens não-seguras
+        fpvShowError('CAMERA UNAVAILABLE',
+            'Chrome blocks camera on HTTP. Go to chrome://flags and enable:' +
+            ' "Insecure origins treated as secure" adding this page\'s URL.');
+        console.warn('[FPV] getUserMedia not supported (insecure origin?)');
+        return;
+    }
+    await fpvStartCamera(null);
+    var sel = document.getElementById('fpv-device-select');
+    if (sel) {
+        sel.addEventListener('change', function() {
+            fpvStartCamera(this.value || null);
+        });
+    }
+    navigator.mediaDevices.addEventListener('devicechange', async function() {
+        await fpvEnumerateDevices();
+        if (!fpvStream || !fpvStream.active) {
+            await fpvStartCamera(fpvDeviceId);
+        }
+    });
+}
+
 // ─── DOMContentLoaded ─────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -1785,6 +1884,7 @@ document.addEventListener('DOMContentLoaded', function() {
     DOM.connectionStatus = document.getElementById('connectionStatus');
 
     initHUD(); // HUD está na aba Home (ativa por padrão)
+    initFpv(); // FPV camera (receptor USB no browser do cliente)
     initSensorCharts(); // Gráficos de sensor com toggle e legenda interativa
     loadSettings();
     startPolling();
