@@ -1583,7 +1583,7 @@ function updateHUD(data) {
 
     // Fase 2: CSS transform em vez de setAttribute — acelerado por GPU
     // transform-origin: 0px 0px (definido no CSS) — mantém equivalência com SVG coords
-    const pitchY = pitch * 3;
+    const pitchY = -pitch * 3;
     if (DOM.horizonGroup) {
         DOM.horizonGroup.style.transform =
             'translate(300px, 330px) rotate(' + roll + 'deg) translate(0px, ' + pitchY + 'px)';
