@@ -1117,9 +1117,9 @@ input:checked + .slider:before {
 
 .status-badge {
     display: inline-flex; align-items: center; justify-content: center;
-    line-height: 1; height: 1.3em; min-width: fit-content;
+    line-height: 1.2; height: 1.6em; min-width: fit-content;
     color: var(--danger); border: 1px solid var(--danger); background: rgba(0,0,0,0.5);
-    padding: 1px 6px; font-size: clamp(0.55rem, 0.65vw, 0.7rem); font-weight: bold; text-shadow: none; animation: pulse-danger 1.5s infinite;
+    padding: 3px 6px; font-size: clamp(0.55rem, 0.65vw, 0.7rem); font-weight: bold; text-shadow: none; animation: pulse-danger 1.5s infinite;
 }
 .status-badge.disarmed {
     color: var(--primary); border-color: var(--primary);
