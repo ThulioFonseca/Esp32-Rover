@@ -28,8 +28,9 @@ namespace Config {
   constexpr int           TANK_MUTEX_TIMEOUT_MS = 5;    // Timeout do try-lock no tankControlTask
 
   // WebSocket
-  constexpr size_t WS_BINARY_FRAME_SIZE = 127; // Tamanho fixo do frame binário (126 dados + 1 CRC8; +5 bytes TOF)
+  constexpr size_t WS_BINARY_FRAME_SIZE = 139; // Tamanho fixo do frame binário (138 dados + 1 CRC8; inclui TOF e diagnóstico)
   constexpr uint8_t MAX_WS_CLIENTS = 4;        // Limite de clientes simultâneos (~2-4KB heap cada)
+  constexpr size_t WS_MAX_CLIENT_BACKLOG = 4;  // Frames pendentes por cliente antes de descartar (4 × 50 ms = 200 ms)
 
   // Configurações de Rede (Persistentes via NVS)
   extern uint8_t WIFI_MODE; // 0 = AP, 1 = STA
@@ -56,7 +57,6 @@ namespace Config {
   
   // Comunicação iBUS (Serial2)
   constexpr unsigned long SERIAL_BAUD = 115200;
-  constexpr uint8_t IBUS_MODE = 1; // IBusBM: modo 1 = apenas leitura
 
   // I2C — barramento único compartilhado (pinos 21/22)
   constexpr uint32_t I2C_FREQ_HZ = 100000; // Standard Mode (100 kHz) — mais robusto a variações de VDD e temperatura; latência aceitável para sensores de navegação

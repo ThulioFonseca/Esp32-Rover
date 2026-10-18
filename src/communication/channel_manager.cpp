@@ -4,25 +4,43 @@
 #include "../utils/utils.h"
 #include <Arduino.h>
 
-ChannelManager::ChannelManager() : lastUpdateTime(0), isInitialized(false) {}
+ChannelManager::ChannelManager()
+    : lastUpdateTime(0), isInitialized(false), lastFrameCount(0), totalFrames(0) {}
 
 bool ChannelManager::initialize() {
-    ibus.begin(Serial2, Config::IBUS_MODE, Pins::IBUS_RX, Pins::IBUS_TX);
+    // IBUSBM_NOTIMER: sem timer de hardware. A ISR da biblioteca chamaria Serial2.available()/read()
+    // em contexto de interrupção (não suportado pelo HardwareSerial do core Arduino) a cada 1 ms
+    // no Core 0. O parsing passa a rodar em poll(), chamado pela ibusPollTask (Core 1, 1 kHz).
+    ibus.begin(Serial2, IBUSBM_NOTIMER, Pins::IBUS_RX, Pins::IBUS_TX);
+    lastFrameCount = ibus.cnt_rec;
     isInitialized = true;
     lastUpdateTime = millis();
     return true;
 }
 
+// Chamado a cada 1 ms pela ibusPollTask. A IBusBM separa frames pelo intervalo de >3 ms entre
+// bytes (medido com millis() no momento do processamento), por isso precisa ser chamada com
+// frequência — processar o buffer em rajadas a 50 Hz faria a biblioteca descartar frames.
+void ChannelManager::poll() {
+    if (!isInitialized) return;
+    ibus.loop();
+}
+
 void ChannelManager::update() {
     if (!isInitialized) return;
 
-    // Verifica timeout ANTES de atualizar dados para eliminar janela de inconsistência
-    // onde isValid poderia ser true momentaneamente durante uma perda real de sinal.
+    // A IBusBM mantém os últimos valores de canal quando os frames param de chegar.
+    // Só o contador de frames válidos (cnt_rec) indica dado novo — é ele que alimenta o failsafe.
+    uint8_t frameCount = ibus.cnt_rec;
+    if (frameCount != lastFrameCount) {
+        totalFrames += (uint8_t)(frameCount - lastFrameCount);
+        lastFrameCount = frameCount;
+        updateChannelData();
+    }
+
     if (hasTimeout()) {
         channelData.isValid = false;
     }
-
-    updateChannelData();
 }
 
 void ChannelManager::updateChannelData() {
@@ -59,11 +77,16 @@ void ChannelManager::updateChannelData() {
         }
     }
 
+    // Chamado apenas quando um frame novo chegou (cnt_rec mudou).
     if (dataReceived) {
         channelData.isValid       = true;
         channelData.lastUpdateTime = millis();
         lastUpdateTime            = channelData.lastUpdateTime;
     }
+}
+
+uint32_t ChannelManager::getFrameCount() const {
+    return totalFrames;
 }
 
 bool ChannelManager::isDataValid() const {

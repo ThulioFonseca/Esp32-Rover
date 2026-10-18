@@ -94,6 +94,14 @@ namespace Types {
     TofData();
   };
 
+  // Diagnóstico de tempo real — publicado pela tankControlTask a cada 1 s, enviado no frame WS.
+  struct ControlDiagnostics {
+    uint16_t ibusFps;      // frames iBUS válidos no último segundo (esperado ≈ 143)
+    uint16_t missedCycles; // ciclos de controle pulados (tankMutex ocupado) no último segundo
+    uint16_t loopMaxUs;    // maior intervalo entre ciclos de controle no último segundo (µs, ideal 20000)
+    uint32_t minFreeHeap;  // menor heap livre desde o boot (bytes)
+  };
+
   enum SystemState {
     INITIALIZING,
     ARMING,

@@ -169,7 +169,7 @@ Converts control commands to PWM for ESCs.
 Hosts telemetry dashboard over WiFi.
 - AsyncWebServer running on Core 0
 - Serves embedded HTML/CSS/JS from `web_pages.h` (gzip-compressed, auto-generated)
-- Exposes real-time telemetry at **20 Hz via WebSocket** (binary frames, 121 bytes fixed-size)
+- Exposes real-time telemetry at **20 Hz via WebSocket** (binary frames, 139 bytes fixed-size, incl. real-time diagnostics)
 - WiFi operates in **AP mode** (default SSID: `ESP32-ROVER`, password: `rover1234`) or **STA mode** (joins existing network). Mode is configurable via web UI and persisted in NVS.
 - Protected by mutex to avoid race conditions with `TankController` on Core 1
 
