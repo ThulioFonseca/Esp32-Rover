@@ -22,6 +22,7 @@
 #include "utils/status_led_manager.h"
 #include <cstring>
 #include "esp_task_wdt.h"
+#include "esp_timer.h"
 
 // Struct em memória RTC (sobrevive soft reset via ESP.restart(), mas não power cycle).
 // Permite passar configurações pendentes para o próximo boot, onde o NVS será gravado
@@ -57,9 +58,21 @@ void tankControlTask(void* pvParameters) {
     const TickType_t xFrequency = pdMS_TO_TICKS(Config::CONTROL_INTERVAL_MS);
     uint32_t watermarkTick = 0;
 
+    // Diagnóstico de tempo real (janela de 1 s, publicado em tankController para o frame WS)
+    int64_t  lastCycleUs     = esp_timer_get_time();
+    int64_t  windowStartUs   = lastCycleUs;
+    uint32_t windowMaxUs     = 0;
+    uint16_t windowMissed    = 0;
+    uint32_t windowFrameBase = tankController.getReceiverFrameCount();
+
     while (true) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
         esp_task_wdt_reset(); // Alimenta o watchdog — se parar, sistema reinicia em 10s
+
+        int64_t nowUs = esp_timer_get_time();
+        uint32_t cycleUs = (uint32_t)(nowUs - lastCycleUs);
+        lastCycleUs = nowUs;
+        if (cycleUs > windowMaxUs) windowMaxUs = cycleUs;
 
         statusLed.update();
 
@@ -74,6 +87,23 @@ void tankControlTask(void* pvParameters) {
         if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(Config::TANK_MUTEX_TIMEOUT_MS)) == pdTRUE) {
             tankController.update();
             xSemaphoreGive(tankMutex);
+        } else {
+            windowMissed++;
+        }
+
+        if (nowUs - windowStartUs >= 1000000) {
+            uint32_t frames = tankController.getReceiverFrameCount();
+            Types::ControlDiagnostics diag;
+            diag.ibusFps      = (uint16_t)(frames - windowFrameBase);
+            diag.missedCycles = windowMissed;
+            diag.loopMaxUs    = (uint16_t)(windowMaxUs > 0xFFFF ? 0xFFFF : windowMaxUs);
+            diag.minFreeHeap  = ESP.getMinFreeHeap();
+            tankController.setDiagnostics(diag);
+
+            windowStartUs   = nowUs;
+            windowFrameBase = frames;
+            windowMaxUs     = 0;
+            windowMissed    = 0;
         }
 
         // Monitoramento de saúde a cada ~30s (1500 × 20ms = 30s)
@@ -89,6 +119,16 @@ void tankControlTask(void* pvParameters) {
             } else {
                 tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO,
                     "[MON] TankControlTask stack min livre: %u words", wm);
+            }
+
+            // Stack do async_tcp (64 KB reservados em platformio.ini). O valor mínimo livre medido
+            // aqui define quanto dá para reduzir com segurança e devolver ao heap.
+            static TaskHandle_t asyncTcpTask = NULL;
+            if (asyncTcpTask == NULL) asyncTcpTask = xTaskGetHandle("async_tcp");
+            if (asyncTcpTask != NULL) {
+                tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO,
+                    "[MON] async_tcp stack min livre: %u bytes (de %u)",
+                    (unsigned)uxTaskGetStackHighWaterMark(asyncTcpTask), (unsigned)CONFIG_ASYNC_TCP_STACK_SIZE);
             }
 
             // Heap monitoring — alerta se livre < 20KB, log degradação < 10KB
@@ -115,6 +155,16 @@ void sensorUpdateTask(void* pvParameters) {
     while (true) {
         vTaskDelayUntil(&xLastWakeTime, xFrequency);
         tankController.updateSensors();
+    }
+}
+
+// Parsing do iBUS a 1 kHz no Core 1, em contexto de task (substitui a ISR de timer da IBusBM).
+// Prioridade acima da tankControlTask: o trabalho é curto (drena poucos bytes da UART) e precisa
+// ser frequente para a biblioteca detectar o intervalo de >3 ms que separa os frames.
+void ibusPollTask(void* pvParameters) {
+    while (true) {
+        tankController.pollReceiver();
+        vTaskDelay(1);
     }
 }
 
@@ -199,12 +249,13 @@ void setup() {
 
     // 4. Tasks do sistema.
     // Core 0: wsBroadcastTask (20 Hz) + tasks internas do AsyncWebServer/AsyncTCP
-    // Core 1: tankControlTask (50 Hz, prioridade alta)
+    // Core 1: tankControlTask (50 Hz, prioridade 2) + ibusPollTask (1 kHz, prioridade 3)
     xTaskCreatePinnedToCore(wsBroadcastTask,  "WsBroadcastTask",  4096, NULL, 1, NULL, 0);
     xTaskCreatePinnedToCore(tankControlTask,  "TankControlTask",  8192, NULL, 2, NULL, 1);
     xTaskCreatePinnedToCore(sensorUpdateTask, "SensorUpdateTask", 4096, NULL, 1, NULL, 1);
+    xTaskCreatePinnedToCore(ibusPollTask,     "IbusPollTask",     3072, NULL, 3, NULL, 1);
 
-    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Tasks iniciadas — controle 50 Hz | sensores 50 Hz | WS broadcast 20 Hz");
+    tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO, "Tasks iniciadas — controle 50 Hz | iBUS 1 kHz | sensores 50 Hz | WS broadcast 20 Hz");
 }
 
 void loop() {

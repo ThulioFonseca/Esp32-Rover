@@ -24,6 +24,7 @@ private:
     const char* ap_password;
     AsyncWebServer server;
     AsyncWebSocket ws;
+    uint32_t _framesDropped; // frames de telemetria descartados por backpressure desde o boot
 
     void setupRoutes();
     void setupWebSocket();

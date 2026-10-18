@@ -28,7 +28,7 @@ static uint32_t hw_free_sketch_space;
 static String   hw_sdk_version;
 
 WebServerManager::WebServerManager(const char* ssid, const char* password)
-    : ap_ssid(ssid), ap_password(password), server(80), ws("/ws") {}
+    : ap_ssid(ssid), ap_password(password), server(80), ws("/ws"), _framesDropped(0) {}
 
 bool WebServerManager::begin() {
     if (Config::WIFI_MODE == 1 && Config::STA_SSID.length() > 0) {
@@ -261,10 +261,12 @@ void WebServerManager::setupRoutes() {
             request->send(503, "application/json", "{\"error\":\"system not ready\"}");
             return;
         }
+        // Sensores têm mutex próprio — lidos fora do tankMutex (sem locks aninhados)
+        imuSnapshot = tankController.getImuData();
+        gpsSnapshot = tankController.getGpsData();
+        compassSnapshot = tankController.getCompassData();
+
         if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(2)) == pdTRUE) {
-            imuSnapshot = tankController.getImuData();
-            gpsSnapshot = tankController.getGpsData();
-            compassSnapshot = tankController.getCompassData();
             motorSnapshot = tankController.getMotorCommands();
             isArmedSnapshot = tankController.isSystemArmed();
             xSemaphoreGive(tankMutex);
@@ -464,6 +466,10 @@ void WebServerManager::onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *c
                 client->close(1013, "max clients reached");
                 return;
             }
+            // Fila cheia descarta a mensagem em vez de fechar a conexão: o envio parte da
+            // wsBroadcastTask, e fechar o cliente a partir dela destruiria o objeto fora do
+            // contexto do async_tcp. O broadcast já evita encher a fila (fila limitada por cliente).
+            client->setCloseClientOnQueueFull(false);
             tankController.debugManager.logf(DebugManager::LOG_LEVEL_INFO,
                 "WS cliente #%u conectado de %s (%u/%d)",
                 client->id(), client->remoteIP().toString().c_str(),
@@ -526,14 +532,18 @@ void WebServerManager::broadcastSensorData() {
     Types::ChannelData   channels;
     bool                 armed = false;
 
+    // Snapshots de sensores têm mutex próprio (sensorMutex) — lidos fora do tankMutex para não
+    // aninhar locks nem prolongar o tempo em que o loop de controle fica bloqueado.
+    imu     = tankController.getImuData();
+    gps     = tankController.getGpsData();
+    compass = tankController.getCompassData();
+    tof     = tankController.getTofData();
+    Types::ControlDiagnostics diag = tankController.getDiagnostics();
+
     if (xSemaphoreTake(tankMutex, pdMS_TO_TICKS(1)) != pdTRUE) {
         return;
     }
 
-    imu      = tankController.getImuData();
-    gps      = tankController.getGpsData();
-    compass  = tankController.getCompassData();
-    tof      = tankController.getTofData();
     motors   = tankController.getMotorCommands();
     channels = tankController.getChannelData();
     armed    = tankController.isSystemArmed();
@@ -548,6 +558,7 @@ void WebServerManager::broadcastSensorData() {
     auto writeU8  = [&](uint8_t  v) { *p++ = v; };
     auto writeU32 = [&](uint32_t v) { memcpy(p, &v, 4); p += 4; };
     auto writeI16 = [&](int16_t  v) { memcpy(p, &v, 2); p += 2; };
+    auto writeU16 = [&](uint16_t v) { memcpy(p, &v, 2); p += 2; };
     auto writeF32 = [&](float    v) { memcpy(p, &v, 4); p += 4; };
 
     writeU8(0x01); // packet_type = sensor frame
@@ -595,6 +606,13 @@ void WebServerManager::broadcastSensorData() {
     writeF32(tof.distanceMm);
     writeU8(tof.isValid ? 1 : 0);
 
+    // Diagnóstico (12 bytes: offset 126–137)
+    writeU16(diag.ibusFps);
+    writeU16(diag.missedCycles);
+    writeU16(diag.loopMaxUs);
+    writeU32(diag.minFreeHeap);
+    writeU16(_framesDropped > 0xFFFF ? 0xFFFF : (uint16_t)_framesDropped);
+
     // ── 3. CRC8 para integridade do frame ──
     // XOR de todos os bytes — simples e suficiente para detectar bit flips em WiFi
     {
@@ -604,6 +622,16 @@ void WebServerManager::broadcastSensorData() {
         writeU8(crc);
     }
 
-    // ── 4. Envia como frame binário WebSocket ──
-    ws.binaryAll(wsBinaryBuffer, (size_t)(p - wsBinaryBuffer));
+    // ── 4. Envia como frame binário WebSocket, com backpressure por cliente ──
+    // Cliente com fila acumulada (Wi-Fi fraco, aba em segundo plano) pula este frame — o próximo
+    // sai em 50 ms. Sem isso a fila chega a 32 frames (~1,6 s de dado velho na tela) e consome heap.
+    const size_t frameLen = (size_t)(p - wsBinaryBuffer);
+    for (auto &client : ws.getClients()) {
+        if (client.status() != WS_CONNECTED) continue;
+        if (client.queueLen() < Config::WS_MAX_CLIENT_BACKLOG) {
+            client.binary(wsBinaryBuffer, frameLen);
+        } else {
+            _framesDropped++;
+        }
+    }
 }

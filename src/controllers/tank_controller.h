@@ -65,6 +65,9 @@ private:
   // Sensor fault counting (for LED indication)
   volatile uint8_t sensorFaultCount;
 
+  // Diagnóstico escrito pela tankControlTask, lido pela web (campos alinhados — leitura atômica por campo)
+  volatile Types::ControlDiagnostics diagnostics;
+
   template<typename T>
   T snapshotUnderMutex(const T& src) const {
       T copy{};
@@ -85,6 +88,7 @@ public:
   bool initialize();
   void update();        // Chamado pela tankControlTask a 50 Hz — motor control apenas.
   void updateSensors(); // Chamado pela sensorUpdateTask — leituras I2C fora do loop de controle.
+  void pollReceiver();  // Chamado pela ibusPollTask a 1 kHz — parsing do iBUS em contexto de task.
   void setDebugMode(bool enabled);
   void setSystemArmed(bool armed);
 
@@ -100,6 +104,10 @@ public:
   Types::SystemState          getSystemState()    const;
   bool                        isSystemArmed()     const;
   uint8_t                     getSensorFaultCount() const;
+  uint32_t                    getReceiverFrameCount() const;
+
+  void                        setDiagnostics(const Types::ControlDiagnostics& diag);
+  Types::ControlDiagnostics   getDiagnostics() const;
 
   String getSystemLogs(); // Retorna o buffer circular de logs
   void clearSystemLogs();

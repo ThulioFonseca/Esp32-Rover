@@ -10,7 +10,7 @@ TankController::TankController()
     : currentState(Types::INITIALIZING), systemArmed(false),
       sensorMutex(NULL), i2cConsecutiveErrors(0), recoveryAttempts(0),
       errorRecoveryTimer(0), errorRecoveryAttempts(0),
-      sensorFaultCount(0) {}
+      sensorFaultCount(0), diagnostics{} {}
 
 bool TankController::initialize() {
     debugManager.logf(DebugManager::LOG_LEVEL_INFO, "=== Inicializando TankController ===");
@@ -133,11 +133,34 @@ void TankController::setDebugMode(bool enabled) {
     debugManager.setEnabled(enabled);
 }
 
+// Pode ser chamado de qualquer core: apenas altera a flag atômica. A tankControlTask (Core 1) é a
+// única que escreve nos ESCs — processControls() aplica o neutro no ciclo seguinte (≤ 20 ms).
 void TankController::setSystemArmed(bool armed) {
     systemArmed.store(armed);
-    if (!armed) {
-        motorController.setNeutral();
-    }
+}
+
+void TankController::pollReceiver() {
+    channelManager.poll();
+}
+
+uint32_t TankController::getReceiverFrameCount() const {
+    return channelManager.getFrameCount();
+}
+
+void TankController::setDiagnostics(const Types::ControlDiagnostics& diag) {
+    diagnostics.ibusFps      = diag.ibusFps;
+    diagnostics.missedCycles = diag.missedCycles;
+    diagnostics.loopMaxUs    = diag.loopMaxUs;
+    diagnostics.minFreeHeap  = diag.minFreeHeap;
+}
+
+Types::ControlDiagnostics TankController::getDiagnostics() const {
+    Types::ControlDiagnostics copy;
+    copy.ibusFps      = diagnostics.ibusFps;
+    copy.missedCycles = diagnostics.missedCycles;
+    copy.loopMaxUs    = diagnostics.loopMaxUs;
+    copy.minFreeHeap  = diagnostics.minFreeHeap;
+    return copy;
 }
 
 void TankController::updateSensors() {
