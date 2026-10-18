@@ -158,6 +158,7 @@ var SENSOR_CHART_CONFIGS = {
 
 var sensorCharts = {}; // { orientation: SensorChart, ... }
 var tofSegs = [];     // 40 SVGRectElement — barra TOF, gerados no DOMContentLoaded
+var tofLastLit = -1;  // último nível desenhado na barra TOF (-1 = força o primeiro desenho)
 
 function initSensorCharts() {
     var ids = Object.keys(SENSOR_CHART_CONFIGS);
@@ -298,6 +299,10 @@ let minimapGridKey   = '';  // "theme/z/cx/cy" — center tile of current grid
 let minimapLastValid = false;
 let minimapZoomDelta = 0;   // user zoom offset: -3 to +3
 let minimapSatMode   = false;
+let minimapDrawnKey  = '';    // estado do último desenho — redesenha só quando muda
+let minimapInvalidFrames = 0; // frames seguidos sem fix (tolera falhas isoladas antes de limpar)
+let minimapCssW = 0, minimapCssH = 0; // tamanho exibido do canvas (via ResizeObserver, sem forçar layout)
+const MINIMAP_INVALID_TOLERANCE = 3; // ~150 ms a 20 Hz
 
 // ─── FPV Camera ───────────────────────────────────────────────────────────────
 let fpvStream   = null;   // MediaStream ativo
@@ -368,7 +373,7 @@ function tryLoadOsmTiles(cLat, cLng, dlat) {
                 const img = new Image();
                 img.crossOrigin = 'anonymous';
                 (function(k, im, tz, tx2, ty2) {
-                    im.onload  = function() { minimapTiles[k] = im; };
+                    im.onload  = function() { minimapTiles[k] = im; minimapDrawnKey = ''; }; // redesenha com o tile novo
                     im.onerror = function() {};
                     im.src = getTileUrl(tz, tx2, ty2);
                 }(key, img, z, tx, ty));
@@ -418,16 +423,34 @@ function updateMiniMap(lat, lng, heading, valid) {
     // Sync canvas resolution with its displayed size, accounting for devicePixelRatio
     // for crisp rendering on retina/HiDPI displays.
     var dpr = window.devicePixelRatio || 1;
-    var dw = Math.round(minimapCanvas.offsetWidth  * dpr);
-    var dh = Math.round(minimapCanvas.offsetHeight * dpr);
+    var dw = Math.round(minimapCssW * dpr);
+    var dh = Math.round(minimapCssH * dpr);
     if (dw > 0 && dh > 0 && (minimapCanvas.width !== dw || minimapCanvas.height !== dh)) {
-        minimapCanvas.width  = dw;
+        minimapCanvas.width = dw;
         minimapCanvas.height = dh;
-        minimapTiles   = {};
+        minimapTiles = {};
         minimapGridKey = '';
+        minimapDrawnKey = '';
     }
     const W = minimapCanvas.width, H = minimapCanvas.height;
     const ctx = minimapCtx;
+
+    // Um frame inválido isolado (ex.: snapshot perdido no firmware) não deve apagar a trilha
+    if (!valid) {
+        minimapInvalidFrames++;
+        if (minimapLastValid && minimapInvalidFrames < MINIMAP_INVALID_TOLERANCE) return;
+    } else {
+        minimapInvalidFrames = 0;
+    }
+
+    // GPS atualiza a ~1 Hz, mas o HUD chama esta função a 20 Hz: só redesenha quando algo visível
+    // muda (posição, heading arredondado, fix, zoom, camada, tamanho) ou quando um tile carrega.
+    var drawKey = valid
+        ? lat.toFixed(6) + ',' + lng.toFixed(6) + ',' + Math.round(heading) + ',' + minimapZoomDelta + ',' +
+          minimapSatMode + ',' + (document.body.getAttribute('data-theme') || '') + ',' + W + 'x' + H
+        : 'nofix,' + W + 'x' + H;
+    if (drawKey === minimapDrawnKey) return;
+    minimapDrawnKey = drawKey;
 
     // Update fix badge
     if (DOM.hudGpsFixBadge) {
@@ -627,9 +650,12 @@ function startRenderLoop() {
             }
 
             // Uptime na Info
-            if (document.getElementById('info').classList.contains('active') && frame._uptime) {
-                const uptimeEl = document.querySelector('#sysinfo-list .value-uptime');
-                if (uptimeEl) uptimeEl.innerText = formatTime(frame._uptime);
+            if (document.getElementById('info').classList.contains('active')) {
+                if (frame._uptime) {
+                    const uptimeEl = document.querySelector('#sysinfo-list .value-uptime');
+                    if (uptimeEl) uptimeEl.textContent = formatTime(frame._uptime);
+                }
+                if (frame._diag) updateDiagnostics(frame._diag);
             }
         }
         rafId = requestAnimationFrame(rafTick);
@@ -644,7 +670,29 @@ let wsConnected = false;
 let wsReconnectTimer = null;
 let wsLastMessageTime = 0;
 let sensorFailCount = 0;
-let wsReconnectDelay = 1000; // backoff exponencial: começa em 1s, max 30s
+let wsReconnectDelay = 1000; // backoff exponencial: começa em 1s, max WS_RECONNECT_MAX_MS
+const WS_RECONNECT_MAX_MS = 3000; // rede local: não há motivo para esperar mais que isso
+const WS_STALE_MS = 1500;         // sem frame por 1,5 s (firmware envia a 20 Hz) = link travado
+
+function scheduleWsReconnect() {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = setTimeout(connectWebSocket, wsReconnectDelay);
+    wsReconnectDelay = Math.min(wsReconnectDelay * 2, WS_RECONNECT_MAX_MS);
+}
+
+// Watchdog: um TCP travado (Wi-Fi fraco, ESP sem enviar) não dispara onclose — sem isto a
+// interface congela mostrando CONNECTED. Descarta o socket parado e reconecta.
+function wsWatchdogTick() {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    if (Date.now() - wsLastMessageTime <= WS_STALE_MS) return;
+    var stale = ws;
+    stale.onopen = stale.onmessage = stale.onclose = stale.onerror = null;
+    try { stale.close(); } catch (e) {}
+    ws = null;
+    wsConnected = false;
+    updateConnectionStatus(false);
+    scheduleWsReconnect();
+}
 
 function connectWebSocket() {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
@@ -657,6 +705,7 @@ function connectWebSocket() {
 
     ws.onopen = function() {
         wsConnected = true;
+        wsLastMessageTime = Date.now();
         wsReconnectDelay = 1000; // reseta backoff na conexão bem-sucedida
         clearTimeout(wsReconnectTimer);
         updateConnectionStatus(true);
@@ -686,8 +735,7 @@ function connectWebSocket() {
     ws.onclose = function() {
         wsConnected = false;
         updateConnectionStatus(false);
-        wsReconnectTimer = setTimeout(connectWebSocket, wsReconnectDelay);
-        wsReconnectDelay = Math.min(wsReconnectDelay * 2, 30000); // backoff exponencial, max 30s
+        scheduleWsReconnect();
     };
 
     ws.onerror = function() {
@@ -700,18 +748,19 @@ function connectWebSocket() {
 // packet_type=0x01: sensor frame. Após parse, reutiliza handleWsSensorData().
 
 function parseBinaryFrame(buf) {
-    if (buf.byteLength < 127) return;
+    if (buf.byteLength < 139) return;
     const v = new DataView(buf);
     const f32 = function(o) { return v.getFloat32(o, true); };
     const u32 = function(o) { return v.getUint32(o, true); };
     const i16 = function(o) { return v.getInt16(o, true); };
+    const u16 = function(o) { return v.getUint16(o, true); };
     const u8  = function(o) { return v.getUint8(o); };
 
     // CRC8 (XOR) — valida integridade do frame antes de processar
     var crc = 0;
     var bytes = new Uint8Array(buf);
-    for (var i = 0; i < 126; i++) crc ^= bytes[i];
-    if (crc !== bytes[126]) return; // frame corrompido — descartado silenciosamente
+    for (var i = 0; i < 138; i++) crc ^= bytes[i];
+    if (crc !== bytes[138]) return; // frame corrompido — descartado silenciosamente
 
     if (u8(0) !== 0x01) return; // tipo desconhecido
 
@@ -722,6 +771,8 @@ function parseBinaryFrame(buf) {
     // Motors (8 bytes, offset 87-94): left(87) right(91)
     // Channels (21 bytes, offset 95-115): 10×i16 + valid(115)
     // System (5 bytes, offset 116-120): armed(116) uptime(117)
+    // TOF (5 bytes, offset 121-125): distance(121) valid(125)
+    // Diag (12 bytes, offset 126-137): ibusFps(126) missed(128) loopMaxUs(130) minHeap(132) dropped(136)
     const th = u8(66), tm_ = u8(67), ts = u8(68);
     const d = {
         imu: {
@@ -750,7 +801,8 @@ function parseBinaryFrame(buf) {
         cv:  u8(115) !== 0,
         arm: u8(116) !== 0,
         up:  u32(117),
-        tof: { v: u8(125) !== 0, d: f32(121) }
+        tof: { v: u8(125) !== 0, d: f32(121) },
+        diag: { fps: u16(126), miss: u16(128), loop: u16(130), heap: u32(132), drop: u16(136) }
     };
 
     handleWsSensorData(d);
@@ -791,7 +843,8 @@ function handleWsSensorData(d) {
         _sensorData: sensorData,
         _channelData: channelData,
         _armed: d.arm,
-        _uptime: d.up
+        _uptime: d.up,
+        _diag: d.diag || null
     };
 }
 
@@ -1012,6 +1065,33 @@ function fetchWithTimeout(url, options) {
     });
 }
 
+// ─── Diagnóstico de tempo real (frame WS, offset 126+) ───────────────────────
+// iBUS esperado ≈ 143 frames/s; loop de controle ideal = 20 ms; missed > 0 indica ciclos pulados.
+var lastDiag = null;
+
+function updateDiagnostics(diag) {
+    lastDiag = diag;
+    var list = DOM.sysinfoList || document.getElementById('sysinfo-list');
+    if (!list) return;
+    var fpsEl  = list.querySelector('.value-diag-fps');
+    var missEl = list.querySelector('.value-diag-miss');
+    var loopEl = list.querySelector('.value-diag-loop');
+    var dropEl = list.querySelector('.value-diag-drop');
+    if (fpsEl) {
+        fpsEl.textContent = diag.fps;
+        fpsEl.style.color = diag.fps === 0 ? 'var(--watermelon)' : diag.fps < 100 ? 'var(--warning)' : '';
+    }
+    if (missEl) {
+        missEl.textContent = diag.miss;
+        missEl.style.color = diag.miss > 0 ? 'var(--warning)' : '';
+    }
+    if (loopEl) {
+        loopEl.textContent = (diag.loop / 1000).toFixed(1) + ' ms';
+        loopEl.style.color = diag.loop > 30000 ? 'var(--watermelon)' : diag.loop > 22000 ? 'var(--warning)' : '';
+    }
+    if (dropEl) dropEl.textContent = diag.drop;
+}
+
 function updateSysInfo() {
     fetchWithTimeout('/api/sysinfo')
         .then(function(response) { return response.json(); })
@@ -1042,7 +1122,12 @@ function updateSysInfo() {
                 '<li><span class="label">Flash (Total)</span> <span class="value">' + formatBytes(data.flash_size) + '</span></li>' +
                 '<li><span class="label">Sketch Size</span> <span class="value">' + formatBytes(data.sketch_size) + '</span></li>' +
                 '<li><span class="label">Free Sketch Space</span> <span class="value">' + formatBytes(data.free_sketch_space) + '</span></li>' +
-                '<li><span class="label">Uptime</span> <span class="value value-uptime">' + formatTime(data.uptime) + '</span></li>';
+                '<li><span class="label">Uptime</span> <span class="value value-uptime">' + formatTime(data.uptime) + '</span></li>' +
+                '<li><span class="label">iBUS Frames/s</span> <span class="value value-diag-fps">—</span></li>' +
+                '<li><span class="label">Ctrl Missed/s</span> <span class="value value-diag-miss">—</span></li>' +
+                '<li><span class="label">Ctrl Loop Max</span> <span class="value value-diag-loop">—</span></li>' +
+                '<li><span class="label">WS Frames Dropped</span> <span class="value value-diag-drop">—</span></li>';
+            if (lastDiag) updateDiagnostics(lastDiag);
 
             const netList = document.getElementById('netinfo-list');
             let netHTML =
@@ -1629,14 +1714,18 @@ function updateHUD(data) {
     var tofValid = data.tof && data.tof.valid;
     var distCm   = tofValid ? (data.tof.distanceMm / 10) : 0;
     var numLit   = tofValid ? Math.max(0, 40 - Math.floor(distCm / 5)) : 0;
-    for (var si = 0; si < tofSegs.length; si++) {
-        if (si < numLit) {
-            var segCol = si >= 36 ? 'var(--watermelon)' : si >= 28 ? 'var(--warning)' : 'var(--accent-color)';
-            tofSegs[si].setAttribute('fill',   segCol);
-            tofSegs[si].setAttribute('filter', si >= 36 ? 'url(#glow-warn)' : 'url(#glow-green)');
-        } else {
-            tofSegs[si].setAttribute('fill',   'rgba(255,255,255,0.06)');
-            tofSegs[si].setAttribute('filter', 'none');
+    // Só reescreve os 40 segmentos (cada um com filtro de blur) quando o nível muda
+    if (numLit !== tofLastLit) {
+        tofLastLit = numLit;
+        for (var si = 0; si < tofSegs.length; si++) {
+            if (si < numLit) {
+                var segCol = si >= 36 ? 'var(--watermelon)' : si >= 28 ? 'var(--warning)' : 'var(--accent-color)';
+                tofSegs[si].setAttribute('fill',   segCol);
+                tofSegs[si].setAttribute('filter', si >= 36 ? 'url(#glow-warn)' : 'url(#glow-green)');
+            } else {
+                tofSegs[si].setAttribute('fill',   'rgba(255,255,255,0.06)');
+                tofSegs[si].setAttribute('filter', 'none');
+            }
         }
     }
     var centerBat = document.getElementById('center-bat');
@@ -1815,7 +1904,16 @@ document.addEventListener('DOMContentLoaded', function() {
     DOM.hudSysTimeLocal = document.getElementById('hud-sys-time-local');
     DOM.hudGpsFixBadge  = document.getElementById('hud-gps-fix-badge');
     minimapCanvas = document.getElementById('hud-minimap');
-    if (minimapCanvas) minimapCtx = minimapCanvas.getContext('2d');
+    if (minimapCanvas) {
+        minimapCtx = minimapCanvas.getContext('2d');
+        // Mede o canvas fora do loop de render — ler offsetWidth a cada frame força layout síncrono
+        new ResizeObserver(function(entries) {
+            var r = entries[0].contentRect;
+            minimapCssW = r.width;
+            minimapCssH = r.height;
+            minimapDrawnKey = '';
+        }).observe(minimapCanvas);
+    }
     var zmIn  = document.getElementById('minimap-zoom-in');
     var zmOut = document.getElementById('minimap-zoom-out');
     if (zmIn)  zmIn.onclick  = function() { if (minimapZoomDelta < 3)  { minimapZoomDelta++; minimapTiles = {}; minimapGridKey = ''; } };
@@ -1890,6 +1988,7 @@ document.addEventListener('DOMContentLoaded', function() {
     startPolling();
     startRenderLoop();      // Fase 2: inicia loop RAF desacoplado
     connectWebSocket();     // Inicia conexão push realtime via WebSocket
+    setInterval(wsWatchdogTick, 500);
 });
 
 window.addEventListener('beforeunload', function() {
