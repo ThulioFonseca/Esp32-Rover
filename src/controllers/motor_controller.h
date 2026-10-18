@@ -9,6 +9,7 @@ private:
   Servo escLeft, escRight;
   Types::MotorCommands commands;
   bool isInitialized;
+  bool leftActive, rightActive; // estado da histerese do deadband de saída por motor
 
 public:
   MotorController();

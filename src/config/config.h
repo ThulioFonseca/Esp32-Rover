@@ -14,6 +14,9 @@ namespace Config {
   constexpr int ESC_DEAD_LOW = 1482;
   constexpr int ESC_DEAD_HIGH = 1582;
   constexpr int ESC_NEUTRAL = (ESC_DEAD_LOW + ESC_DEAD_HIGH) / 2;
+
+  // Resolução do timer LEDC dos ESCs (bits). 16 bits a 50 Hz ≈ 0,3 µs por passo (padrão do ESP32Servo: 10 bits ≈ 19,5 µs)
+  constexpr int ESC_PWM_TIMER_WIDTH = 16;
   
   // Zona morta do stick (µs ao redor do centro 1500)
   // Jitter típico de RC é 15-30µs — valor baixo demais causa drift de controle
